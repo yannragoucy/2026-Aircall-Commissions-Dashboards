@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Commission Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f5f4f0;
+  --bg2: #eceae4;
+  --white: #ffffff;
+  --border: #dedad2;
+  --border2: #ccc9c0;
+  --text: #1a1916;
+  --text2: #5a574f;
+  --text3: #9c9890;
+  --blue: #1d6fce;
+  --blue-bg: #e8f0fb;
+  --green: #1a7a4a;
+  --green-bg: #e6f4ec;
+  --amber: #b45309;
+  --amber-bg: #fef3e2;
+  --red: #c0392b;
+  --red-bg: #fdecea;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+
+body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; font-size: 14px; }
+
+/* ── HEADER ── */
+header {
+  background: var(--white); border-bottom: 1px solid var(--border);
+  padding: 14px 28px; display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; position: sticky; top: 0; z-index: 200;
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header-icon { width: 32px; height: 32px; background: var(--blue); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 15px; flex-shrink: 0; }
+header h1 { font-size: 15px; font-weight: 600; }
+header p { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 1px; }
+.month-chips { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.month-chip { padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border2); background: var(--bg); color: var(--text2); font-size: 11px; font-family: var(--mono); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.month-chip:hover { border-color: var(--blue); color: var(--blue); }
+.month-chip.active { background: var(--blue); color: white; border-color: var(--blue); }
+.month-chip.del { color: var(--red); border-color: #ecc; padding: 4px 7px; background: var(--white); }
+.month-chip.del:hover { background: var(--red); color: white; border-color: var(--red); }
+.fx-note { font-size: 10px; color: var(--text3); font-family: var(--mono); margin-top: 4px; }
+
+/* ── UPLOAD ── */
+.upload-zone { margin: 16px 28px; border: 1.5px dashed var(--border2); border-radius: 10px; padding: 18px; text-align: center; cursor: pointer; background: var(--white); transition: all 0.2s; }
+.upload-zone:hover, .upload-zone.over { border-color: var(--blue); background: var(--blue-bg); }
+.upload-zone input { display: none; }
+.upload-zone h3 { font-size: 13px; font-weight: 600; margin-top: 5px; }
+.upload-zone p { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-top: 3px; }
+
+/* ── TOP-LEVEL TABS (plan + raw data) ── */
+.plan-tabs-bar { border-bottom: 1px solid var(--border); padding: 0 28px; background: var(--white); display: flex; gap: 0; overflow-x: auto; }
+.plan-tab { padding: 12px 20px; border: none; background: none; color: var(--text3); font-family: var(--sans); font-size: 12px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; letter-spacing: 0.2px; }
+.plan-tab:hover { color: var(--text2); }
+.plan-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.plan-tab.rawdata-tab { color: var(--text3); border-left: 1px solid var(--border); margin-left: 8px; padding-left: 22px; }
+.plan-tab.rawdata-tab.active { color: var(--amber); border-bottom-color: var(--amber); }
+
+/* ── PLAN CONTENT ── */
+.plan-content { display: none; padding: 22px 28px; }
+.plan-content.active { display: block; }
+
+/* ── KPI ROW ── */
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.kpi { background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+.kpi label { font-size: 10px; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; }
+.kpi .val { font-size: 22px; font-weight: 700; margin-top: 3px; }
+.kpi .sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+/* ── SECTIONS ── */
+.section { background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 18px 20px; margin-bottom: 16px; }
+.section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text3); margin-bottom: 12px; }
+.chart-wrap { position: relative; }
+.chart-wrap.h300 { height: 300px; }
+.chart-wrap.h320 { height: 320px; }
+.chart-wrap.h260 { height: 260px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+.legend-row { display: flex; gap: 16px; margin-bottom: 10px; flex-wrap: wrap; }
+.leg { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text2); font-family: var(--mono); }
+.leg-dot { width: 9px; height: 9px; border-radius: 50%; }
+.leg-dashed { width: 16px; height: 2px; background: repeating-linear-gradient(to right, #999 0, #999 4px, transparent 4px, transparent 8px); }
+
+/* ── SUB-TABS ── */
+.sub-tabs-bar { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.sub-tab { padding: 8px 16px; border: none; background: none; cursor: pointer; font-size: 12px; font-family: var(--mono); color: var(--text3); border-bottom: 2px solid transparent; transition: all 0.15s; }
+.sub-tab:hover { color: var(--text); }
+.sub-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+.sub-panel { display: none; }
+.sub-panel.active { display: block; }
+
+/* ── RAW DATA TABLE ── */
+#raw-panel { display: none; padding: 22px 28px; }
+#raw-panel.active { display: block; }
+
+.raw-filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+.raw-filters label { font-size: 11px; font-family: var(--mono); color: var(--text3); }
+.raw-select { font-family: var(--mono); font-size: 12px; padding: 5px 10px; border: 1px solid var(--border2); border-radius: 6px; background: var(--bg); color: var(--text); cursor: pointer; }
+.raw-select:focus { outline: none; border-color: var(--blue); }
+.raw-search { font-family: var(--mono); font-size: 12px; padding: 5px 10px; border: 1px solid var(--border2); border-radius: 6px; background: var(--bg); color: var(--text); width: 200px; }
+.raw-search:focus { outline: none; border-color: var(--blue); }
+.raw-count { font-size: 11px; font-family: var(--mono); color: var(--text3); margin-left: auto; }
+
+.table-wrap { background: var(--white); border: 1px solid var(--border); border-radius: 8px; overflow: auto; max-height: 600px; }
+table { border-collapse: collapse; width: 100%; font-size: 12px; }
+thead { position: sticky; top: 0; z-index: 10; }
+th { background: var(--bg2); padding: 9px 12px; text-align: left; font-size: 10px; font-weight: 600; font-family: var(--mono); color: var(--text3); text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; }
+th:hover { color: var(--text); }
+th .sort-icon { opacity: 0.4; margin-left: 4px; }
+th.sorted .sort-icon { opacity: 1; color: var(--blue); }
+td { padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #f9f8f5; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-family: var(--mono); font-weight: 500; }
+.badge-blue { background: var(--blue-bg); color: var(--blue); }
+.badge-green { background: var(--green-bg); color: var(--green); }
+.badge-red { background: var(--red-bg); color: var(--red); }
+.badge-amber { background: var(--amber-bg); color: var(--amber); }
+.att-cell { font-family: var(--mono); font-weight: 500; }
+.att-green { color: var(--green); }
+.att-amber { color: var(--amber); }
+.att-red { color: var(--red); }
+
+/* ── TOAST ── */
+.toast { position: fixed; bottom: 20px; right: 20px; background: var(--white); border: 1px solid var(--border); border-left: 3px solid var(--green); border-radius: 8px; padding: 11px 16px; font-size: 12px; font-family: var(--mono); box-shadow: 0 4px 16px rgba(0,0,0,0.1); transform: translateY(60px); opacity: 0; transition: all 0.3s; z-index: 999; }
+.toast.show { transform: none; opacity: 1; }
+.toast.err { border-left-color: var(--red); }
+
+/* ── MONTH SELECTOR BAR (inside plan panel, Monthly view) ── */
+.month-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:10px 0 14px; border-bottom:1px solid var(--border); margin-bottom:16px; }
+.month-bar-label { font-size:10px; color:var(--text3); font-family:var(--mono); white-space:nowrap; }
+.mchip { padding:3px 11px; border-radius:20px; border:1px solid var(--border2); background:var(--bg); color:var(--text2); font-size:11px; font-family:var(--mono); cursor:pointer; transition:all .15s; white-space:nowrap; }
+.mchip:hover { border-color:var(--blue); color:var(--blue); }
+.mchip.active { background:var(--blue); color:white; border-color:var(--blue); }
+
+/* ── VIEW TOGGLE (Monthly / Quarterly) ── */
+.view-toggle { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:16px; }
+.view-btn { padding:10px 18px; border:none; background:none; cursor:pointer; font-size:12px; font-family:var(--sans); font-weight:600; color:var(--text3); border-bottom:2px solid transparent; transition:all .15s; }
+.view-btn:hover { color:var(--text2); }
+.view-btn.active { color:var(--blue); border-bottom-color:var(--blue); }
+
+/* ── QUARTERLY PANEL ── */
+.qtr-section { background:var(--white); border:1px solid var(--border); border-radius:8px; padding:18px 20px; margin-bottom:16px; }
+.qtr-filter-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+.qtr-filter-bar .section-title { margin-bottom:0; }
+.qtr-chip { padding:4px 13px; border-radius:20px; border:1px solid var(--border2); background:var(--white); color:var(--text2); font-size:11px; font-family:var(--mono); cursor:pointer; transition:all .15s; white-space:nowrap; }
+.qtr-chip:hover { border-color:var(--blue); color:var(--blue); }
+.qtr-chip.active { color:white; border-color:transparent; background:#888; }
+.qtr-chip.qc1.active { background:#1d6fce; }
+.qtr-chip.qc2.active { background:#1a7a4a; }
+.qtr-chip.qc3.active { background:#b45309; }
+.qtr-chip.qc4.active { background:#7c3aed; }
+.qtr-comp-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:14px; }
+.qtr-comp-tab { padding:7px 14px; border:none; background:none; cursor:pointer; font-size:11px; font-family:var(--mono); color:var(--text3); border-bottom:2px solid transparent; transition:all .15s; }
+.qtr-comp-tab:hover { color:var(--text); }
+.qtr-comp-tab.active { color:var(--blue); border-bottom-color:var(--blue); }
+.qtr-comp-panel { display:none; }
+.qtr-comp-panel.active { display:block; }
+.qtr-two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; }
+.qtr-no-data { text-align:center; padding:48px 20px; color:var(--text3); font-family:var(--mono); font-size:12px; }
+
+/* ── COMMENT BOX ── */
+.comment-box { background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-top: 16px; }
+.comment-box-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 12px; }
+.comment-box-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text3); display: flex; align-items: center; gap: 7px; }
+.comment-box-title svg { opacity: 0.5; }
+.comment-saved { font-size: 10px; font-family: var(--mono); color: var(--green); opacity: 0; transition: opacity 0.3s; }
+.comment-saved.show { opacity: 1; }
+.comment-textarea {
+  width: 100%; min-height: 80px; max-height: 300px;
+  font-family: var(--sans); font-size: 13px; color: var(--text); line-height: 1.6;
+  border: 1px solid var(--border2); border-radius: 6px; padding: 10px 12px;
+  background: var(--bg); resize: vertical; transition: border-color 0.15s;
+  outline: none;
+}
+.comment-textarea:focus { border-color: var(--blue); background: var(--white); }
+.comment-textarea::placeholder { color: var(--text3); font-style: italic; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+@media (max-width: 768px) {
+  header, .upload-zone, .plan-tabs-bar, .plan-content, #raw-panel { padding-left: 16px; padding-right: 16px; }
+  .two-col { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="header-icon">◈</div>
+    <div>
+      <h1>Commission Dashboard</h1>
+      <p id="hdr-sub">No data — upload a CaptivateIQ CSV to begin</p>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+      <span style="font-size:10px;color:var(--text3);font-family:var(--mono)">Stored months:</span>
+      <div class="month-chips" id="stored-months"></div>
+    </div>
+    <div class="fx-note" id="fx-note"></div>
+  </div>
+</header>
+
+<div class="upload-zone" id="upload-zone">
+  <input type="file" id="file-input" accept=".csv">
+  <div style="font-size:22px">📥</div>
+  <h3>Drop a CaptivateIQ payout CSV here</h3>
+  <p>Data stored in browser · FX rates from official CIQ table</p>
+</div>
+
+<div class="plan-tabs-bar" id="plan-tabs"></div>
+<div id="plan-panels"></div>
+<div id="raw-panel"></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// FX RATES — from official CIQ table (2026, all months identical)
+// ═══════════════════════════════════════════════════
+const FX_TABLE = {
+  "January 2026":   { USD:1, EUR:1.16, GBP:1.33, AUD:0.66, MXN:0.05 },
+  "February 2026":  { USD:1, EUR:1.16, GBP:1.33, AUD:0.66, MXN:0.05 },
+  "March 2026":     { USD:1, EUR:1.16, GBP:1.33, AUD:0.66, MXN:0.05 },
+  "April 2026":     { USD:1, EUR:1.16, GBP:1.33, AUD:0.66, MXN:0.05 },
+  "May 2026":       { USD:1, EUR:1.16, GBP:1.33, AUD:0.66, MXN:0.05 },
+  "June 2026":      { USD:1, EUR:1.16, GBP:1.33, AUD:0.66, MXN:0.05 },
+  "July 2026":      { USD:1, EUR:1.16, GBP:1.33, AUD:0.66, MXN:0.05 },
+  "August 2026":    { USD:1, EUR:1.16, GBP:1.33, AUD:0.66, MXN:0.05 },
+  "September 2026": { USD:1, EUR:1.16, GBP:1.33, AUD:0.66, MXN:0.05 },
+  "October 2026":   { USD:1, EUR:1.16, GBP:1.33, AUD:0.66, MXN:0.05 },
+  "November 2026":  { USD:1, EUR:1.16, GBP:1.33, AUD:0.66, MXN:0.05 },
+  "December 2026":  { USD:1, EUR:1.16, GBP:1.33, AUD:0.66, MXN:0.05 }
+};
+const FX_FALLBACK = { USD:1, EUR:1.16, GBP:1.33, AUD:0.66, MXN:0.05 };
+
+function getFX(monthLabel, currency) {
+  const rates = FX_TABLE[monthLabel] || FX_FALLBACK;
+  return rates[currency] || 1;
+}
+
+// ═══════════════════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════════════════
+const STORE_KEY = 'ciq_dash_v4';
+function loadStore() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { return {}; } }
+function saveStore(d) { try { localStorage.setItem(STORE_KEY, JSON.stringify(d)); } catch { showToast('Storage full', true); } }
+
+// Sort month label keys chronologically (Jan 2026 → Feb 2026 → … → Dec 2026)
+function sortedKeys(store, asc=true) {
+  return Object.keys(store).sort((a, b) => {
+    const da = new Date(a), db = new Date(b);
+    const ta = isNaN(da) ? a : da.getTime();
+    const tb = isNaN(db) ? b : db.getTime();
+    return asc ? ta - tb : tb - ta;
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// CSV PARSING
+// ═══════════════════════════════════════════════════
+function parseCSV(text) {
+  const rows = Papa.parse(text, { header: true, skipEmptyLines: true }).data;
+  if (!rows.length) throw new Error('Empty CSV');
+
+  const mRaw = rows.find(r => r['Payout Month'])?.['Payout Month'] || '';
+  let monthLabel = 'Unknown';
+  if (mRaw) {
+    const d = new Date(mRaw);
+    monthLabel = isNaN(d) ? mRaw : d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  }
+
+  const plans = {};
+  const rawRows = [];
+
+  rows.forEach(r => {
+    // Quarter: use Payout Quarter column if present, else derive from Payout Month date
+    let quarterLabel = (r['Payout Quarter'] || '').trim();
+    if (!quarterLabel) {
+      const mRaw2 = (r['Payout Month'] || '').trim();
+      if (mRaw2) {
+        const md = new Date(mRaw2);
+        if (!isNaN(md)) {
+          const qNum = Math.ceil((md.getMonth() + 1) / 3);
+          quarterLabel = `Q${qNum} ${md.getFullYear()}`;
+        }
+      }
+    }
+    if (!quarterLabel) quarterLabel = monthLabel ? `Q${Math.ceil((new Date(monthLabel+' 1').getMonth()+1)/3)} ${new Date(monthLabel+' 1').getFullYear()}` : 'Unknown';
+    // Final fallback: derive from the parsed monthLabel
+    if (quarterLabel === 'Unknown' && monthLabel !== 'Unknown') {
+      const md2 = new Date(monthLabel);
+      if (!isNaN(md2)) quarterLabel = `Q${Math.ceil((md2.getMonth()+1)/3)} ${md2.getFullYear()}`;
+    }
+    const plan = (r['Current Plan Name'] || r['Original Plan Name'] || '').trim();
+    if (!plan) return;
+    if (!plans[plan]) plans[plan] = [];
+
+    const currency = r['Employee Payout Currency'] || 'USD';
+    const fx = getFX(monthLabel, currency);
+    const n = v => { const f = parseFloat(v); return isNaN(f) ? 0 : f; };
+    const nfx = v => n(v) * fx;
+
+    const fn = (r['Employee First Name'] || '').trim();
+    const ln = (r['Employee Last Name'] || '').trim();
+    const name = (fn + ' ' + ln).trim() || 'N/A';
+
+    let oteRaw = plan === 'xDR Management' ? n(r['Payout Full OTE']) : n(r['Payout OTE']);
+    const ote    = oteRaw * fx;
+    const payout = nfx(r['Payout Payout']);
+
+    const area  = (r['Employee Area'] || r['Payout Area'] || '').trim() || 'Unknown';
+    let level = '';
+    if (plan === 'AE Plan' || plan === 'AE Manager/Director') {
+      level = (r['Payout AE Level'] || '').trim() || 'Unknown';
+    } else {
+      const lv = n(r['Payout Level']);
+      level = lv ? 'Level ' + lv : 'Unknown';
+    }
+
+    const comp = {};
+    if (plan === 'AE Plan' || plan === 'AE Manager/Director') {
+      comp.mrr_actual   = nfx(r['Payout Monthly Additional MRR']);
+      comp.mrr_quota    = nfx(r['Payout Effective Monthly Quota']);
+      comp.addons_actual = nfx(r['Payout Add-ons Signed']);
+      comp.addons_quota  = nfx(r['Payout Add-ons quota']);
+    }
+    if (plan === 'BDR Plan') {
+      comp.dp_actual   = n(r['Payout Demo Points - Monthly Achivement']);
+      comp.dp_target   = n(r['Payout Demo Points - Target']);
+      comp.closing_usd = nfx(r['Payout Closing $ (from Payout M-3)']);
+    }
+    if (plan === 'SDR Plan') {
+      comp.qp_payout = nfx(r['Payout Payout - Qualified Pipeline']);
+      comp.qp_target = nfx(r['Payout Target - Qualified Pipeline']);
+    }
+    if (plan === 'xDR Management') {
+      comp.bdr_qp_ach = n(r['Payout BDR QP Achievement']);
+      comp.bdr_qp_tgt = n(r['Payout BDR QP Target']);
+      comp.bdr_cl_ach = n(r['Payout BDR Closing Achievement']);
+      comp.bdr_cl_tgt = n(r['Payout BDR Closing Target']);
+    }
+
+    const person = { name, area, level, ote, payout, currency, fx, comp, quarter: quarterLabel };
+    plans[plan].push(person);
+
+    // Raw data row
+    const attainment = ote > 0 ? payout / ote : null;
+    rawRows.push({
+      month: monthLabel,
+      plan,
+      name,
+      area,
+      level,
+      currency,
+      fx,
+      ote_local: oteRaw,
+      ote_usd: ote,
+      payout_local: n(plan === 'xDR Management' ? r['Payout Payout'] : r['Payout Payout']),
+      payout_usd: payout,
+      attainment,
+      email: r['Employee Email'] || ''
+    });
+  });
+
+  return { monthLabel, plans, rawRows };
+}
+
+// ═══════════════════════════════════════════════════
+// CHART REGISTRY
+// ═══════════════════════════════════════════════════
+const charts = {};
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+const PALETTE = ['#1d6fce','#e84e1b','#1a7a4a','#b45309','#7c3aed','#0891b2','#be123c','#15803d','#92400e','#1e40af'];
+function col(i) { return PALETTE[i % PALETTE.length]; }
+const GRID = 'rgba(0,0,0,0.06)';
+const TICK = { color: '#9c9890', font: { family: "'IBM Plex Mono'", size: 10 } };
+const TT = { backgroundColor:'#fff', borderColor:'#dedad2', borderWidth:1, titleColor:'#1a1916', bodyColor:'#5a574f', padding:10, bodyFont:{ family:"'IBM Plex Mono'", size:11 } };
+
+// ═══════════════════════════════════════════════════
+// CHART RENDERERS
+// ═══════════════════════════════════════════════════
+function renderScatter(canvasId, people) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if (!ctx) return;
+  // include everyone with a valid OTE (even if payout = 0)
+  const valid = people.filter(p => p.ote > 0);
+  const maxVal = Math.max(...valid.map(p => Math.max(p.ote, p.payout)), 1) * 1.15;
+  charts[canvasId] = new Chart(ctx, {
+    type:'scatter',
+    data:{ datasets:[
+      { label:'ICs', data: valid.map(p=>({ x:p.ote, y:p.payout, name:p.name })),
+        backgroundColor: valid.map(p => p.payout>=p.ote ? 'rgba(26,122,74,0.75)' : 'rgba(192,57,43,0.75)'),
+        borderColor: valid.map(p => p.payout>=p.ote ? '#1a7a4a' : '#c0392b'),
+        borderWidth:1.5, pointRadius:6, pointHoverRadius:8 },
+      { label:'OTE=Payout', data:[{x:0,y:0},{x:maxVal,y:maxVal}], type:'line',
+        borderColor:'rgba(29,111,206,0.35)', borderDash:[6,4], borderWidth:1.5, pointRadius:0, fill:false }
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{...TT, callbacks:{
+        label: ctx => { const d=ctx.raw; if(!d.name)return''; return `${d.name}  OTE $${Math.round(d.x).toLocaleString()}  Payout $${Math.round(d.y).toLocaleString()}`; }
+      }}},
+      scales:{
+        x:{ min:0, max:maxVal, grid:{color:GRID}, ticks:{...TICK,callback:v=>'$'+Math.round(v/1000)+'k'}, title:{display:true,text:'Monthly OTE (USD)',color:'#9c9890',font:{size:10}} },
+        y:{ min:0, max:maxVal, grid:{color:GRID}, ticks:{...TICK,callback:v=>'$'+Math.round(v/1000)+'k'}, title:{display:true,text:'Total Monthly Payout (USD)',color:'#9c9890',font:{size:10}} }
+      }
+    }
+  });
+}
+
+function renderSubTab(idx, plan, people, subId) {
+  const isDollar = plan==='BDR Plan' && subId==='closing';
+  const attFn = p => getAttainment(p, plan, subId);
+
+  // by IC
+  // by IC — include 0% attainment (att===0 is valid), only exclude null (no denominator)
+  const sorted = [...people]
+    .map(p=>({...p, att:attFn(p)}))
+    .filter(p => p.att !== null && isFinite(p.att))
+    .sort((a,b)=>b.att-a.att);
+  const icLabels = sorted.map(p=>{ const pts=p.name.split(' '); return pts[0]+(pts[1]?' '+pts[1][0]+'.':''); });
+  const icVals = sorted.map(p=>isDollar?Math.round(p.att):Math.round(p.att*10)/10);
+  const icColors = sorted.map(p=> isDollar?'rgba(29,111,206,0.7)':(p.att>=100?'rgba(26,122,74,0.7)':p.att>=70?'rgba(29,111,206,0.65)':'rgba(192,57,43,0.65)'));
+
+  const suffix = isDollar ? '$ (USD)' : '% vs Target';
+  const setTitle = (el, t) => { if(el) el.textContent=t; };
+  setTitle(document.getElementById(`sp_${idx}_${subId}_ic_title`), `Attainment ${suffix} — by IC`);
+  setTitle(document.getElementById(`sp_${idx}_${subId}_area_title`), `Attainment ${suffix} — by Area`);
+  setTitle(document.getElementById(`sp_${idx}_${subId}_level_title`), `Attainment ${suffix} — by Level`);
+
+  const icId = `c_${idx}_${subId}_ic`;
+  destroyChart(icId);
+  const icCtx = document.getElementById(icId)?.getContext('2d');
+  if (icCtx) charts[icId] = new Chart(icCtx, {
+    type:'bar',
+    data:{ labels:icLabels, datasets:[{ data:icVals, backgroundColor:icColors, borderRadius:3, borderSkipped:false }]},
+    options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{...TT,callbacks:{label:ctx=>isDollar?` $${ctx.raw.toLocaleString()}`:` ${ctx.raw.toFixed(1)}%`}}},
+      scales:{
+        x:{grid:{color:GRID},ticks:{...TICK,callback:v=>isDollar?'$'+Math.round(v/1000)+'k':v+'%'}},
+        y:{grid:{display:false},ticks:{...TICK}}
+      }
+    }
+  });
+
+  // by Area
+  const areaGrp = groupAvg(people.map(p=>({...p,att:attFn(p)})), p=>p.area, p=>p.att);
+  const areaId = `c_${idx}_${subId}_area`;
+  destroyChart(areaId);
+  const aCtx = document.getElementById(areaId)?.getContext('2d');
+  if (aCtx && areaGrp.length) charts[areaId] = new Chart(aCtx, {
+    type:'bar',
+    data:{ labels:areaGrp.map(g=>g.key), datasets:[
+      { data:areaGrp.map(g=>Math.round(g.avg*10)/10), backgroundColor:areaGrp.map((_,i)=>col(i)+'bb'), borderRadius:4, borderSkipped:false },
+      ...(isDollar?[]:[{type:'line',data:areaGrp.map(()=>100),borderColor:'rgba(0,0,0,0.18)',borderDash:[5,4],borderWidth:1.5,pointRadius:0,fill:false}])
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{...TT,callbacks:{label:ctx=>isDollar?` $${ctx.raw.toLocaleString()}`:` ${ctx.raw.toFixed(1)}% avg`}}},
+      scales:{ x:{grid:{display:false},ticks:{color:'#5a574f',font:{size:10}}}, y:{grid:{color:GRID},ticks:{...TICK,callback:v=>isDollar?'$'+Math.round(v/1000)+'k':v+'%'}} }
+    }
+  });
+
+  // by Level
+  const levelGrp = groupAvg(people.map(p=>({...p,att:attFn(p)})), p=>p.level, p=>p.att);
+  const levelId = `c_${idx}_${subId}_level`;
+  destroyChart(levelId);
+  const lCtx = document.getElementById(levelId)?.getContext('2d');
+  if (lCtx && levelGrp.length) charts[levelId] = new Chart(lCtx, {
+    type:'bar',
+    data:{ labels:levelGrp.map(g=>g.key), datasets:[
+      { data:levelGrp.map(g=>Math.round(g.avg*10)/10), backgroundColor:levelGrp.map((_,i)=>col(i+4)+'bb'), borderRadius:4, borderSkipped:false },
+      ...(isDollar?[]:[{type:'line',data:levelGrp.map(()=>100),borderColor:'rgba(0,0,0,0.18)',borderDash:[5,4],borderWidth:1.5,pointRadius:0,fill:false}])
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{...TT,callbacks:{label:ctx=>isDollar?` $${ctx.raw.toLocaleString()}`:` ${ctx.raw.toFixed(1)}% avg`}}},
+      scales:{ x:{grid:{display:false},ticks:{color:'#5a574f',font:{size:10}}}, y:{grid:{color:GRID},ticks:{...TICK,callback:v=>isDollar?'$'+Math.round(v/1000)+'k':v+'%'}} }
+    }
+  });
+}
+
+function getAttainment(person, plan, subId) {
+  const c = person.comp;
+  // null = no valid denominator (person not on this component) → excluded from charts
+  // 0   = valid denominator but 0 achievement → shown as 0%
+  if (subId==='overall')  return person.ote>0 ? (person.payout/person.ote)*100 : null;
+  if (subId==='mrr')      return c.mrr_quota>0 ? (c.mrr_actual/c.mrr_quota)*100 : null;
+  if (subId==='addons')   return c.addons_quota>0 ? (c.addons_actual/c.addons_quota)*100 : null;
+  if (subId==='dp')       return c.dp_target>0 ? (c.dp_actual/c.dp_target)*100 : null;
+  if (subId==='closing')  return c.closing_usd != null ? (c.closing_usd || 0) : null;
+  if (subId==='qp')       return c.qp_target>0 ? (c.qp_payout/c.qp_target)*100 : null;
+  if (subId==='bdrqp')    return c.bdr_qp_tgt>0 ? (c.bdr_qp_ach/c.bdr_qp_tgt)*100 : null;
+  if (subId==='bdrcl')    return c.bdr_cl_tgt>0 ? (c.bdr_cl_ach/c.bdr_cl_tgt)*100 : null;
+  return null;
+}
+
+function groupAvg(arr, keyFn, attFn) {
+  const m = {};
+  arr.forEach(p => {
+    const k = keyFn(p); if (!m[k]) m[k] = [];
+    const a = attFn(p);
+    // include 0% — only skip null (no valid denominator) and non-finite
+    if (a !== null && isFinite(a)) m[k].push(a);
+  });
+  return Object.entries(m)
+    .map(([k,vs]) => ({ key:k, avg:vs.length ? vs.reduce((s,v)=>s+v,0)/vs.length : 0, n:vs.length }))
+    .filter(g => g.n > 0)
+    .sort((a,b) => b.avg-a.avg);
+}
+
+// ═══════════════════════════════════════════════════
+// BUILD PLAN PANEL HTML
+// ═══════════════════════════════════════════════════
+function subTabsForPlan(plan) {
+  if (plan==='AE Plan'||plan==='AE Manager/Director')
+    return [{id:'overall',label:'Overall'},{id:'mrr',label:'MRR'},{id:'addons',label:'Add-ons'}];
+  if (plan==='BDR Plan')
+    return [{id:'overall',label:'Overall'},{id:'dp',label:'Demo Points'},{id:'closing',label:'Closing'}];
+  if (plan==='SDR Plan')
+    return [{id:'overall',label:'Overall'},{id:'qp',label:'Qualified Pipeline'}];
+  if (plan==='xDR Management')
+    return [{id:'overall',label:'Overall'},{id:'bdrqp',label:'BDR QP'},{id:'bdrcl',label:'BDR Closing'}];
+  return [{id:'overall',label:'Overall'}];
+}
+
+function buildPlanPanel(idx, plan) {
+  const tabs = subTabsForPlan(plan);
+  const subTabsHTML = tabs.map((t,i)=>`<button class="sub-tab${i===0?' active':''}" data-plan-idx="${idx}" data-sub="${t.id}">${t.label}</button>`).join('');
+  const subPanelsHTML = tabs.map((t,i)=>`
+    <div class="sub-panel${i===0?' active':''}" id="sp_${idx}_${t.id}">
+      <div class="two-col">
+        <div class="section">
+          <div class="section-title" id="sp_${idx}_${t.id}_ic_title">Attainment — by IC</div>
+          <div class="chart-wrap h320"><canvas id="c_${idx}_${t.id}_ic"></canvas></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="section" style="flex:1">
+            <div class="section-title" id="sp_${idx}_${t.id}_area_title">Attainment — by Area</div>
+            <div class="chart-wrap h260"><canvas id="c_${idx}_${t.id}_area"></canvas></div>
+          </div>
+          <div class="section" style="flex:1">
+            <div class="section-title" id="sp_${idx}_${t.id}_level_title">Attainment — by Level</div>
+            <div class="chart-wrap h260"><canvas id="c_${idx}_${t.id}_level"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  return `
+    <div class="kpi-row">
+      <div class="kpi"><label>ICs</label><div class="val kpi-ics-${idx}">—</div><div class="sub">on this plan</div></div>
+      <div class="kpi"><label>Above OTE</label><div class="val kpi-above-${idx}" style="color:var(--green)">—</div><div class="sub">exceeded monthly OTE</div></div>
+      <div class="kpi"><label>Avg Attainment</label><div class="val kpi-att-${idx}" style="color:var(--blue)">—</div><div class="sub">overall payout / OTE</div></div>
+      <div class="kpi"><label>Total Payout</label><div class="val kpi-payout-${idx}">—</div><div class="sub">USD this month</div></div>
+    </div>
+
+    <div class="view-toggle">
+      <button class="view-btn active" id="vbtn-monthly-${idx}">📅 Monthly</button>
+      <button class="view-btn" id="vbtn-quarterly-${idx}">📊 Quarterly YTD</button>
+    </div>
+
+    <div id="monthly-view-${idx}">
+      <div class="month-bar" id="month-bar-${idx}">
+        <span class="month-bar-label">Viewing month:</span>
+        <div id="month-chips-${idx}" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+      </div>
+      <div class="section" style="margin-bottom:16px">
+        <div class="section-title">OTE vs Monthly Payout — by IC (USD)</div>
+        <div class="legend-row">
+          <div class="leg"><div class="leg-dot" style="background:#1a7a4a"></div>Above OTE</div>
+          <div class="leg"><div class="leg-dot" style="background:#c0392b"></div>Below OTE</div>
+          <div class="leg"><div class="leg-dashed"></div>OTE line (y=x)</div>
+        </div>
+        <div class="chart-wrap h300"><canvas id="scatter_${idx}"></canvas></div>
+      </div>
+      <div class="section">
+        <div class="section-title">Attainment vs Target — by IC / Area / Level</div>
+        <div class="sub-tabs-bar">${subTabsHTML}</div>
+        ${subPanelsHTML}
+      </div>
+    </div>
+
+    <div id="quarterly-view-${idx}" style="display:none">
+      <div id="qtr-content-${idx}">
+        <div class="qtr-no-data">Load monthly CSVs from multiple quarters to compare</div>
+      </div>
+    </div>
+
+    <div class="comment-box" id="comment-box-${idx}">
+      <div class="comment-box-header">
+        <div class="comment-box-title">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v9H9.5l-1.5 3-1.5-3H2V2z"/></svg>
+          Notes &amp; Commentary
+          <span style="font-size:10px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0" id="comment-ctx-${idx}"></span>
+        </div>
+        <span class="comment-saved" id="comment-saved-${idx}">✓ Saved</span>
+      </div>
+      <textarea class="comment-textarea" id="comment-ta-${idx}" placeholder="Add notes or commentary for this plan and month — e.g. highlights, context, action items…"></textarea>
+    </div>`;
+}
+
+function renderPlanKPIs(idx, people) {
+  const above = people.filter(p=>p.ote>0&&p.payout>=p.ote).length;
+  const atts = people.map(p=>p.ote>0?(p.payout/p.ote)*100:null).filter(v=>v!=null);
+  const avgA = atts.length?atts.reduce((s,v)=>s+v,0)/atts.length:0;
+  const totalPay = people.reduce((s,p)=>s+p.payout,0);
+  document.querySelector(`.kpi-ics-${idx}`).textContent = people.length;
+  document.querySelector(`.kpi-above-${idx}`).textContent = above;
+  document.querySelector(`.kpi-att-${idx}`).textContent = avgA.toFixed(1)+'%';
+  document.querySelector(`.kpi-payout-${idx}`).textContent = '$'+Math.round(totalPay/1000)+'k';
+}
+
+// ═══════════════════════════════════════════════════
+// RAW DATA TABLE
+// ═══════════════════════════════════════════════════
+let rawSortCol = 'attainment';
+let rawSortAsc = false;
+
+function buildRawPanel() {
+  const store = loadStore();
+  // Collect all raw rows across all stored months
+  const allRows = [];
+  const allMonths = new Set();
+  const allPlans = new Set();
+
+  Object.values(store).forEach(monthData => {
+    if (!monthData.rawRows) return;
+    monthData.rawRows.forEach(r => {
+      allRows.push(r);
+      allMonths.add(r.month);
+      allPlans.add(r.plan);
+    });
+  });
+
+  const monthOpts = ['All months', ...Array.from(allMonths).sort((a,b)=>{ const da=new Date(a),db=new Date(b); return (isNaN(da)?a:da.getTime())-(isNaN(db)?b:db.getTime()); })].map(m=>`<option value="${m}">${m}</option>`).join('');
+  const planOpts  = ['All plans',  ...Array.from(allPlans).sort()].map(p=>`<option value="${p}">${p}</option>`).join('');
+
+  document.getElementById('raw-panel').innerHTML = `
+    <div class="raw-filters">
+      <label>Month</label>
+      <select class="raw-select" id="raw-month-filter">${monthOpts}</select>
+      <label style="margin-left:8px">Plan</label>
+      <select class="raw-select" id="raw-plan-filter">${planOpts}</select>
+      <input class="raw-search" id="raw-search" placeholder="Search by name…" type="text">
+      <span class="raw-count" id="raw-count"></span>
+    </div>
+    <div class="table-wrap">
+      <table id="raw-table">
+        <thead>
+          <tr>
+            <th data-col="month">Month <span class="sort-icon">↕</span></th>
+            <th data-col="plan">Plan <span class="sort-icon">↕</span></th>
+            <th data-col="name">Name <span class="sort-icon">↕</span></th>
+            <th data-col="area">Area <span class="sort-icon">↕</span></th>
+            <th data-col="level">Level <span class="sort-icon">↕</span></th>
+            <th data-col="currency">CCY <span class="sort-icon">↕</span></th>
+            <th data-col="ote_usd">OTE (USD) <span class="sort-icon">↕</span></th>
+            <th data-col="payout_usd">Payout (USD) <span class="sort-icon">↕</span></th>
+            <th data-col="attainment">Attainment <span class="sort-icon">↕</span></th>
+          </tr>
+        </thead>
+        <tbody id="raw-tbody"></tbody>
+      </table>
+    </div>`;
+
+  // Sort header click
+  document.querySelectorAll('#raw-table th[data-col]').forEach(th => {
+    th.onclick = () => {
+      const col = th.dataset.col;
+      if (rawSortCol === col) rawSortAsc = !rawSortAsc;
+      else { rawSortCol = col; rawSortAsc = true; }
+      document.querySelectorAll('#raw-table th').forEach(t => t.classList.remove('sorted'));
+      th.classList.add('sorted');
+      th.querySelector('.sort-icon').textContent = rawSortAsc ? '↑' : '↓';
+      renderRawRows();
+    };
+  });
+
+  document.getElementById('raw-month-filter').onchange = renderRawRows;
+  document.getElementById('raw-plan-filter').onchange  = renderRawRows;
+  document.getElementById('raw-search').oninput = renderRawRows;
+
+  // Store all rows on the element for filtering
+  document.getElementById('raw-table').__rows = allRows;
+  renderRawRows();
+}
+
+function renderRawRows() {
+  const tbl = document.getElementById('raw-table');
+  if (!tbl) return;
+  let rows = tbl.__rows || [];
+
+  const monthFilter = document.getElementById('raw-month-filter')?.value || 'All months';
+  const planFilter  = document.getElementById('raw-plan-filter')?.value  || 'All plans';
+  const search      = (document.getElementById('raw-search')?.value || '').toLowerCase().trim();
+
+  if (monthFilter !== 'All months') rows = rows.filter(r => r.month === monthFilter);
+  if (planFilter  !== 'All plans')  rows = rows.filter(r => r.plan  === planFilter);
+  if (search) rows = rows.filter(r => r.name.toLowerCase().includes(search) || r.area.toLowerCase().includes(search));
+
+  // Sort
+  rows = [...rows].sort((a,b) => {
+    let va = a[rawSortCol], vb = b[rawSortCol];
+    if (va == null) va = ''; if (vb == null) vb = '';
+    const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb));
+    return rawSortAsc ? cmp : -cmp;
+  });
+
+  document.getElementById('raw-count').textContent = `${rows.length} row${rows.length!==1?'s':''}`;
+
+  const fmt$ = v => v==null?'—':'$'+Math.round(v).toLocaleString();
+  const fmtAtt = v => {
+    if (v==null||!isFinite(v)) return '<span class="att-cell" style="color:var(--text3)">—</span>';
+    const pct = Math.round(v*1000)/10;
+    const cls = pct>=100?'att-green':pct>=70?'att-amber':'att-red';
+    return `<span class="att-cell ${cls}">${pct.toFixed(1)}%</span>`;
+  };
+  const planBadge = p => {
+    const cls = p==='AE Plan'?'blue':p==='BDR Plan'?'green':p==='SDR Plan'?'amber':p==='AE Manager/Director'?'blue':'red';
+    return `<span class="badge badge-${cls}">${p}</span>`;
+  };
+
+  const tbody = document.getElementById('raw-tbody');
+  tbody.innerHTML = rows.map(r=>`
+    <tr>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${r.month}</td>
+      <td>${planBadge(r.plan)}</td>
+      <td style="font-weight:500">${r.name}</td>
+      <td style="color:var(--text2)">${r.area}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${r.level}</td>
+      <td><span class="badge badge-blue">${r.currency}</span></td>
+      <td style="font-family:var(--mono);text-align:right">${fmt$(r.ote_usd)}</td>
+      <td style="font-family:var(--mono);text-align:right">${fmt$(r.payout_usd)}</td>
+      <td style="text-align:right">${fmtAtt(r.attainment)}</td>
+    </tr>`).join('');
+}
+
+// ═══════════════════════════════════════════════════
+// QUARTERLY ENGINE
+// ═══════════════════════════════════════════════════
+
+const QTR_HEX = { Q1:'#1d6fce', Q2:'#1a7a4a', Q3:'#b45309', Q4:'#7c3aed' };
+function qHex(q) { const m=q.match(/Q(\d)/); return m?QTR_HEX['Q'+m[1]]||'#888':'#888'; }
+function qRgba(q,a=0.78){ const h=qHex(q); const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; }
+
+// Aggregate all stored months → { 'Q2 2026': [ {name,area,level,ote,payout,comp,months}, … ] }
+function buildQtrData(plan) {
+  const store = loadStore();
+  const acc = {};
+  Object.values(store).forEach(md => {
+    if (!md.plans?.[plan]) return;
+    md.plans[plan].forEach(p => {
+      const q = p.quarter || 'Unknown';
+      if (!acc[q]) acc[q] = {};
+      if (!acc[q][p.name]) acc[q][p.name] = {
+        name:p.name, area:p.area, level:p.level, ote:0, payout:0, months:0,
+        comp:{ mrr_actual:0,mrr_quota:0,addons_actual:0,addons_quota:0,
+               dp_actual:0,dp_target:0,closing_usd:0,
+               qp_payout:0,qp_target:0,
+               bdr_qp_ach:0,bdr_qp_tgt:0,bdr_cl_ach:0,bdr_cl_tgt:0 }
+      };
+      const a = acc[q][p.name];
+      a.ote += p.ote; a.payout += p.payout; a.months++;
+      Object.keys(a.comp).forEach(k => { if (p.comp[k]!==undefined) a.comp[k] += p.comp[k]; });
+    });
+  });
+  const result = {};
+  Object.entries(acc).forEach(([q,people]) => { result[q] = Object.values(people).sort((a,b)=>a.name.localeCompare(b.name)); });
+  return result;
+}
+
+function qtrAtt(person, plan, subId) {
+  const c = person.comp;
+  if (subId==='overall') return person.ote>0?(person.payout/person.ote)*100:null;
+  if (subId==='mrr')     return c.mrr_quota>0?(c.mrr_actual/c.mrr_quota)*100:null;
+  if (subId==='addons')  return c.addons_quota>0?(c.addons_actual/c.addons_quota)*100:null;
+  if (subId==='dp')      return c.dp_target>0?(c.dp_actual/c.dp_target)*100:null;
+  if (subId==='closing') return c.closing_usd!=null?c.closing_usd:null;
+  if (subId==='qp')      return c.qp_target>0?(c.qp_payout/c.qp_target)*100:null;
+  if (subId==='bdrqp')   return c.bdr_qp_tgt>0?(c.bdr_qp_ach/c.bdr_qp_tgt)*100:null;
+  if (subId==='bdrcl')   return c.bdr_cl_tgt>0?(c.bdr_cl_ach/c.bdr_cl_tgt)*100:null;
+  return null;
+}
+
+// Render quarterly scatter for a single quarter
+function renderQtrScatter(canvasId, people) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if (!ctx) return;
+  const valid = people.filter(p=>p.ote>0);
+  if (!valid.length) return;
+  const maxV = Math.max(...valid.map(p=>Math.max(p.ote,p.payout)),1)*1.15;
+  charts[canvasId] = new Chart(ctx, {
+    type:'scatter',
+    data:{ datasets:[
+      { data:valid.map(p=>({x:p.ote,y:p.payout,name:p.name})),
+        backgroundColor:valid.map(p=>p.payout>=p.ote?'rgba(26,122,74,0.75)':'rgba(192,57,43,0.75)'),
+        borderColor:valid.map(p=>p.payout>=p.ote?'#1a7a4a':'#c0392b'),
+        borderWidth:1.5,pointRadius:6,pointHoverRadius:8 },
+      { data:[{x:0,y:0},{x:maxV,y:maxV}],type:'line',borderColor:'rgba(29,111,206,0.35)',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false }
+    ]},
+    options:{ responsive:true,maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{...TT,callbacks:{ label:c=>{ const d=c.raw; if(!d.name)return''; return `${d.name}  OTE $${Math.round(d.x).toLocaleString()}  Payout $${Math.round(d.y).toLocaleString()}`; }}}},
+      scales:{
+        x:{min:0,max:maxV,grid:{color:GRID},ticks:{...TICK,callback:v=>'$'+Math.round(v/1000)+'k'},title:{display:true,text:'Quarterly OTE (USD)',color:'#9c9890',font:{size:10}}},
+        y:{min:0,max:maxV,grid:{color:GRID},ticks:{...TICK,callback:v=>'$'+Math.round(v/1000)+'k'},title:{display:true,text:'Quarterly Payout (USD)',color:'#9c9890',font:{size:10}}}
+      }
+    }
+  });
+}
+
+// Grouped bar: IC attainment across selected quarters
+function renderQtrICBar(canvasId, qtrData, selQtrs, plan, subId) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if (!ctx) return;
+  const isDollar = plan==='BDR Plan'&&subId==='closing';
+  const nameSet = new Set();
+  selQtrs.forEach(q=>(qtrData[q]||[]).forEach(p=>nameSet.add(p.name)));
+  const names = Array.from(nameSet).sort();
+  const datasets = selQtrs.map(q=>({
+    label:q,
+    data:names.map(name=>{ const p=(qtrData[q]||[]).find(x=>x.name===name); if(!p)return null; const v=qtrAtt(p,plan,subId); return(v!==null&&isFinite(v))?Math.round(v*10)/10:null; }),
+    backgroundColor:qRgba(q,0.78), borderColor:qHex(q), borderWidth:1, borderRadius:3, borderSkipped:false
+  }));
+  const shortNames = names.map(n=>{ const p=n.split(' '); return p[0]+(p[1]?' '+p[1][0]+'.':''); });
+  charts[canvasId] = new Chart(ctx,{
+    type:'bar', data:{labels:shortNames,datasets},
+    options:{ responsive:true,maintainAspectRatio:false,
+      plugins:{ legend:{display:true,position:'top',labels:{font:{family:"'IBM Plex Mono'",size:11},boxWidth:12,padding:14}},
+        tooltip:{...TT,callbacks:{label:c=>`${c.dataset.label}: ${c.raw!==null?(isDollar?'$'+Math.round(c.raw).toLocaleString():c.raw.toFixed(1)+'%'):'—'}`}} },
+      scales:{
+        x:{grid:{display:false},ticks:{...TICK,font:{size:10}}},
+        y:{grid:{color:GRID},ticks:{...TICK,callback:v=>isDollar?'$'+Math.round(v/1000)+'k':v+'%'}}
+      }
+    }
+  });
+}
+
+// Grouped bar: dimension (area/level) average across selected quarters
+function renderQtrDimBar(canvasId, qtrData, selQtrs, plan, subId, dimKey) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if (!ctx) return;
+  const isDollar = plan==='BDR Plan'&&subId==='closing';
+  const dimSet = new Set();
+  selQtrs.forEach(q=>(qtrData[q]||[]).forEach(p=>dimSet.add(p[dimKey]||'Unknown')));
+  const dims = Array.from(dimSet).sort();
+  const datasets = selQtrs.map(q=>{
+    const dm={};
+    (qtrData[q]||[]).forEach(p=>{ const d=p[dimKey]||'Unknown'; const v=qtrAtt(p,plan,subId); if(v!==null&&isFinite(v)){if(!dm[d])dm[d]={s:0,n:0};dm[d].s+=v;dm[d].n++;} });
+    return { label:q, data:dims.map(d=>dm[d]?Math.round(dm[d].s/dm[d].n*10)/10:null),
+      backgroundColor:qRgba(q,0.78), borderColor:qHex(q), borderWidth:1, borderRadius:4, borderSkipped:false };
+  });
+  charts[canvasId] = new Chart(ctx,{
+    type:'bar', data:{labels:dims,datasets},
+    options:{ responsive:true,maintainAspectRatio:false,
+      plugins:{ legend:{display:true,position:'top',labels:{font:{family:"'IBM Plex Mono'",size:11},boxWidth:12,padding:14}},
+        tooltip:{...TT,callbacks:{label:c=>`${c.dataset.label}: ${c.raw!==null?(isDollar?'$'+Math.round(c.raw).toLocaleString():c.raw.toFixed(1)+'% avg'):'—'}`}} },
+      scales:{
+        x:{grid:{display:false},ticks:{color:'#5a574f',font:{size:11}}},
+        y:{grid:{color:GRID},ticks:{...TICK,callback:v=>isDollar?'$'+Math.round(v/1000)+'k':v+'%'}}
+      }
+    }
+  });
+}
+
+function renderQtrCharts(idx, plan, qtrData, selQtrs, subId) {
+  const isDollar = plan==='BDR Plan'&&subId==='closing';
+  const suffix = isDollar?'$ (USD)':'% vs Target';
+  const setT=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t;};
+  setT(`qtric-title-${idx}-${subId}`,`Quarterly Attainment ${suffix} — by IC`);
+  setT(`qtrarea-title-${idx}-${subId}`,`Quarterly Avg ${suffix} — by Area`);
+  setT(`qtrlevel-title-${idx}-${subId}`,`Quarterly Avg ${suffix} — by Level`);
+  renderQtrICBar(`qc-ic-${idx}-${subId}`, qtrData, selQtrs, plan, subId);
+  renderQtrDimBar(`qc-area-${idx}-${subId}`, qtrData, selQtrs, plan, subId, 'area');
+  renderQtrDimBar(`qc-level-${idx}-${subId}`, qtrData, selQtrs, plan, subId, 'level');
+}
+
+// Build and render the full quarterly view for a plan
+function renderQuarterlyView(idx, plan) {
+  const container = document.getElementById(`qtr-content-${idx}`);
+  if (!container) return;
+  const qtrData = buildQtrData(plan);
+  const allQtrs = Object.keys(qtrData).sort();
+  if (!allQtrs.length) {
+    container.innerHTML='<div class="qtr-no-data">No quarterly data — load monthly CSVs from at least one quarter</div>';
+    return;
+  }
+
+  const compTabs = subTabsForPlan(plan);
+
+  // Quarter filter chips HTML — use qcN class for CSS color
+  const chipsHTML = allQtrs.map(q=>{
+    const m = q.match(/Q(\d)/);
+    const qn = m ? parseInt(m[1]) : 0;
+    const cls = qn >= 1 && qn <= 4 ? ` qc${qn}` : '';
+    return `<span class="qtr-chip active${cls}" data-qval="${q}">${q}</span>`;
+  }).join('');
+
+  // Scatter quarter tabs + panels
+  const scatterTabsHTML = allQtrs.map((q,i)=>
+    `<button class="qtr-comp-tab${i===0?' active':''}" data-qscatter="${q}">${q}</button>`).join('');
+  const scatterPanelsHTML = allQtrs.map((q,i)=>{
+    const sid = `qscatter-${idx}-${q.replace(/\s/g,'_')}`;
+    return `<div class="qtr-comp-panel${i===0?' active':''}" id="${sid}">
+      <div class="legend-row" style="margin-bottom:8px">
+        <div class="leg"><div class="leg-dot" style="background:#1a7a4a"></div>Above OTE</div>
+        <div class="leg"><div class="leg-dot" style="background:#c0392b"></div>Below OTE</div>
+      </div>
+      <div class="chart-wrap" style="height:300px"><canvas id="qsc-${idx}-${q.replace(/\s/g,'_')}"></canvas></div>
+    </div>`;
+  }).join('');
+
+  // Component attainment tabs + panels
+  const attTabsHTML = compTabs.map((t,i)=>
+    `<button class="qtr-comp-tab${i===0?' active':''}" data-qcomp="${t.id}">${t.label}</button>`).join('');
+  const attPanelsHTML = compTabs.map((t,i)=>`
+    <div class="qtr-comp-panel${i===0?' active':''}" id="qattp-${idx}-${t.id}">
+      <div class="qtr-section">
+        <div class="section-title" id="qtric-title-${idx}-${t.id}">Quarterly Attainment — by IC</div>
+        <div class="chart-wrap" style="height:340px"><canvas id="qc-ic-${idx}-${t.id}"></canvas></div>
+      </div>
+      <div class="qtr-two-col">
+        <div class="qtr-section">
+          <div class="section-title" id="qtrarea-title-${idx}-${t.id}">By Area</div>
+          <div class="chart-wrap" style="height:260px"><canvas id="qc-area-${idx}-${t.id}"></canvas></div>
+        </div>
+        <div class="qtr-section">
+          <div class="section-title" id="qtrlevel-title-${idx}-${t.id}">By Level</div>
+          <div class="chart-wrap" style="height:260px"><canvas id="qc-level-${idx}-${t.id}"></canvas></div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  container.innerHTML = `
+    <div class="qtr-section" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="section-title" style="margin-bottom:0">Show quarters:</span>
+        <div id="qtr-chips-${idx}" style="display:flex;gap:6px;flex-wrap:wrap">${chipsHTML}</div>
+        <span id="qtr-sel-hint-${idx}" style="font-size:10px;color:var(--text3);font-family:var(--mono);margin-left:4px"></span>
+      </div>
+    </div>
+
+    <div class="qtr-section" style="margin-bottom:16px">
+      <div class="section-title" style="margin-bottom:10px">OTE vs Quarterly Payout — by Quarter</div>
+      <div class="qtr-comp-tabs" id="qscatter-tabs-${idx}">${scatterTabsHTML}</div>
+      ${scatterPanelsHTML}
+    </div>
+
+    <div class="qtr-section">
+      <div class="section-title" style="margin-bottom:10px">Quarterly Attainment — by Component</div>
+      <div class="qtr-comp-tabs" id="qatt-tabs-${idx}">${attTabsHTML}</div>
+      ${attPanelsHTML}
+    </div>`;
+
+  // Store state
+  container.__qtrData = qtrData;
+  container.__allQtrs = allQtrs;
+  container.__selQtrs = [...allQtrs];
+  container.__activeComp = compTabs[0].id;
+
+  // Wire scatter quarter tabs
+  container.querySelectorAll(`#qscatter-tabs-${idx} .qtr-comp-tab`).forEach(btn=>{
+    btn.onclick = ()=>{
+      container.querySelectorAll(`#qscatter-tabs-${idx} .qtr-comp-tab`).forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const q = btn.dataset.qscatter;
+      container.querySelectorAll(`[id^="qscatter-${idx}-"]`).forEach(p=>p.classList.remove('active'));
+      document.getElementById(`qscatter-${idx}-${q.replace(/\s/g,'_')}`)?.classList.add('active');
+      renderQtrScatter(`qsc-${idx}-${q.replace(/\s/g,'_')}`, qtrData[q]||[]);
+    };
+  });
+
+  // Wire attainment component tabs
+  container.querySelectorAll(`#qatt-tabs-${idx} .qtr-comp-tab`).forEach(btn=>{
+    btn.onclick = ()=>{
+      container.querySelectorAll(`#qatt-tabs-${idx} .qtr-comp-tab`).forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const comp = btn.dataset.qcomp;
+      container.querySelectorAll(`[id^="qattp-${idx}-"]`).forEach(p=>p.classList.remove('active'));
+      document.getElementById(`qattp-${idx}-${comp}`)?.classList.add('active');
+      container.__activeComp = comp;
+      renderQtrCharts(idx, plan, container.__qtrData, container.__selQtrs, comp);
+    };
+  });
+
+  // Wire quarter filter chips
+  container.querySelectorAll(`#qtr-chips-${idx} .qtr-chip`).forEach(chip=>{
+    chip.onclick = ()=>{
+      chip.classList.toggle('active');
+      let sel = Array.from(container.querySelectorAll(`#qtr-chips-${idx} .qtr-chip.active`)).map(c=>c.dataset.qval);
+      if (!sel.length) {
+        container.querySelectorAll(`#qtr-chips-${idx} .qtr-chip`).forEach(c=>c.classList.add('active'));
+        sel = [...allQtrs];
+      }
+      container.__selQtrs = sel;
+      renderQtrCharts(idx, plan, container.__qtrData, sel, container.__activeComp);
+    };
+  });
+
+  // Initial renders
+  const firstQ = allQtrs[0];
+  renderQtrScatter(`qsc-${idx}-${firstQ.replace(/\s/g,'_')}`, qtrData[firstQ]||[]);
+  renderQtrCharts(idx, plan, qtrData, allQtrs, compTabs[0].id);
+}
+
+// ═══════════════════════════════════════════════════
+// COMMENTS — stored by "Month|Plan" key in localStorage
+// ═══════════════════════════════════════════════════
+const COMMENTS_KEY = 'ciq_comments_v1';
+function loadComments() { try { return JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}'); } catch { return {}; } }
+function saveComments(d) { try { localStorage.setItem(COMMENTS_KEY, JSON.stringify(d)); } catch {} }
+function commentKey(month, plan) { return `${month}||${plan}`; }
+
+function initCommentBox(idx, month, plan) {
+  const ta    = document.getElementById(`comment-ta-${idx}`);
+  const saved = document.getElementById(`comment-saved-${idx}`);
+  const ctx   = document.getElementById(`comment-ctx-${idx}`);
+  if (!ta) return;
+
+  // Show context label
+  if (ctx) ctx.textContent = `· ${month} › ${plan}`;
+
+  // Load existing text
+  const comments = loadComments();
+  ta.value = comments[commentKey(month, plan)] || '';
+
+  // Auto-save on input with debounce + "Saved" flash
+  let saveTimer;
+  ta.oninput = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      const all = loadComments();
+      const val = ta.value.trim();
+      if (val) all[commentKey(month, plan)] = ta.value;
+      else delete all[commentKey(month, plan)];
+      saveComments(all);
+      if (saved) {
+        saved.classList.add('show');
+        setTimeout(() => saved.classList.remove('show'), 1800);
+      }
+    }, 600);
+  };
+}
+
+
+// ═══════════════════════════════════════════════════
+// RENDER MONTH
+// ═══════════════════════════════════════════════════
+let activeMonth = null;
+
+function renderMonth(key) {
+  activeMonth = key;
+  const store = loadStore();
+  const data = store[key];
+  if (!data) return;
+
+  document.getElementById('hdr-sub').textContent = `Monthly view: ${key}`;
+  document.getElementById('fx-note').textContent = `FX (official CIQ): EUR×1.16 · GBP×1.33 · AUD×0.66 · MXN×0.05`;
+
+  const tabsEl   = document.getElementById('plan-tabs');
+  const panelsEl = document.getElementById('plan-panels');
+  const rawEl    = document.getElementById('raw-panel');
+  tabsEl.innerHTML = '';
+  panelsEl.innerHTML = '';
+  rawEl.innerHTML = '';
+  rawEl.classList.remove('active');
+
+  const planNames = Object.keys(data.plans);
+
+  planNames.forEach((plan, idx) => {
+    const btn = document.createElement('button');
+    btn.className = 'plan-tab' + (idx===0?' active':'');
+    btn.textContent = plan;
+    btn.onclick = () => {
+      tabsEl.querySelectorAll('.plan-tab').forEach(b=>b.classList.remove('active'));
+      panelsEl.querySelectorAll('.plan-content').forEach(c=>c.classList.remove('active'));
+      rawEl.classList.remove('active');
+      btn.classList.add('active');
+      const panel = document.getElementById(`plan_${idx}`);
+      panel.classList.add('active');
+      renderPlanKPIs(idx, data.plans[plan]);
+      renderScatter(`scatter_${idx}`, data.plans[plan]);
+      renderSubTab(idx, plan, data.plans[plan], 'overall');
+      initCommentBox(idx, key, plan);
+    };
+    tabsEl.appendChild(btn);
+
+    const panel = document.createElement('div');
+    panel.className = 'plan-content' + (idx===0?' active':'');
+    panel.id = `plan_${idx}`;
+    panel.innerHTML = buildPlanPanel(idx, plan);
+    panel.__plan = plan;
+    panelsEl.appendChild(panel);
+
+    // Populate month chips inside this panel's Monthly view
+    const store2 = loadStore();
+    const allKeys = sortedKeys(store2, true);
+    const mChipsEl = panel.querySelector(`#month-chips-${idx}`);
+    if (mChipsEl) {
+      allKeys.forEach(k => {
+        const mc = document.createElement('span');
+        mc.className = 'mchip' + (k===key?' active':'');
+        const d2 = new Date(k);
+        mc.textContent = isNaN(d2) ? k : d2.toLocaleString('en-US',{month:'short',year:'2-digit'});
+        mc.title = k;
+        mc.onclick = () => {
+          panel.querySelectorAll(`#month-chips-${idx} .mchip`).forEach(c=>c.classList.remove('active'));
+          mc.classList.add('active');
+          // re-render monthly charts for this new month
+          const newData = loadStore()[k];
+          if (newData?.plans?.[plan]) {
+            renderPlanKPIs(idx, newData.plans[plan]);
+            renderScatter(`scatter_${idx}`, newData.plans[plan]);
+            // re-render active sub-tab
+            const activeSub = panel.querySelector('.sub-tab.active')?.dataset.sub || 'overall';
+            renderSubTab(idx, plan, newData.plans[plan], activeSub);
+            initCommentBox(idx, k, plan);
+          }
+        };
+        mChipsEl.appendChild(mc);
+      });
+    }
+
+    // Monthly sub-tab clicks
+    panel.querySelectorAll('.sub-tab').forEach(st => {
+      st.onclick = () => {
+        const pIdx = parseInt(st.dataset.planIdx);
+        const subId = st.dataset.sub;
+        panel.querySelectorAll('.sub-tab').forEach(s=>s.classList.remove('active'));
+        panel.querySelectorAll('.sub-panel').forEach(s=>s.classList.remove('active'));
+        st.classList.add('active');
+        document.getElementById(`sp_${pIdx}_${subId}`)?.classList.add('active');
+        renderSubTab(pIdx, plan, data.plans[plan], subId);
+      };
+    });
+
+    // Monthly ↔ Quarterly toggle
+    const vM = document.getElementById(`vbtn-monthly-${idx}`);
+    const vQ = document.getElementById(`vbtn-quarterly-${idx}`);
+    const mV = document.getElementById(`monthly-view-${idx}`);
+    const qV = document.getElementById(`quarterly-view-${idx}`);
+    if (vM && vQ) {
+      vM.onclick = () => { vM.classList.add('active'); vQ.classList.remove('active'); mV.style.display=''; qV.style.display='none'; };
+      vQ.onclick = () => { vQ.classList.add('active'); vM.classList.remove('active'); qV.style.display=''; mV.style.display='none'; renderQuarterlyView(idx, panel.__plan); };
+    }
+  });
+
+  // Raw Data tab
+  const rawBtn = document.createElement('button');
+  rawBtn.className = 'plan-tab rawdata-tab';
+  rawBtn.textContent = '⊞ Raw Data';
+  rawBtn.onclick = () => {
+    tabsEl.querySelectorAll('.plan-tab').forEach(b=>b.classList.remove('active'));
+    panelsEl.querySelectorAll('.plan-content').forEach(c=>c.classList.remove('active'));
+    rawBtn.classList.add('active');
+    rawEl.classList.add('active');
+    buildRawPanel();
+  };
+  tabsEl.appendChild(rawBtn);
+
+  if (planNames.length > 0) {
+    renderPlanKPIs(0, data.plans[planNames[0]]);
+    renderScatter('scatter_0', data.plans[planNames[0]]);
+    renderSubTab(0, planNames[0], data.plans[planNames[0]], 'overall');
+    initCommentBox(0, key, planNames[0]);
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// MONTH CHIPS — stored-months zone only (header)
+// Active month selector lives inside each plan panel
+// ═══════════════════════════════════════════════════
+function refreshChips() {
+  const store = loadStore();
+  const keys = sortedKeys(store, true);
+  const storedEl = document.getElementById('stored-months');
+  storedEl.innerHTML = '';
+
+  if (!keys.length) {
+    storedEl.innerHTML = '<span style="font-size:11px;color:var(--text3);font-family:var(--mono)">No months stored</span>';
+    return;
+  }
+
+  keys.forEach(k => {
+    const chip = document.createElement('span');
+    chip.className = 'month-chip';
+    chip.style.cursor = 'default';
+    const d = new Date(k);
+    chip.textContent = isNaN(d) ? k : d.toLocaleString('en-US',{month:'short',year:'2-digit'});
+    chip.title = k;
+    storedEl.appendChild(chip);
+
+    const del = document.createElement('span');
+    del.className = 'month-chip del';
+    del.textContent = '×';
+    del.title = 'Delete ' + k;
+    del.onclick = e => {
+      e.stopPropagation();
+      if (!confirm(`Delete ${k}?`)) return;
+      const s = loadStore(); delete s[k]; saveStore(s);
+      if (activeMonth === k) {
+        activeMonth = null;
+        document.getElementById('plan-tabs').innerHTML = '';
+        document.getElementById('plan-panels').innerHTML = '';
+        document.getElementById('raw-panel').innerHTML = '';
+        document.getElementById('raw-panel').classList.remove('active');
+        document.getElementById('hdr-sub').textContent = 'No data — upload a CaptivateIQ CSV to begin';
+        document.getElementById('fx-note').textContent = '';
+      }
+      refreshChips();
+      const rem = sortedKeys(loadStore(), false);
+      if (rem.length) renderMonth(rem[0]);
+      showToast(`${k} deleted`);
+    };
+    storedEl.appendChild(del);
+  });
+
+  if (!activeMonth && keys.length) { activeMonth = keys[keys.length-1]; refreshChips(); renderMonth(keys[keys.length-1]); }
+}
+
+// ═══════════════════════════════════════════════════
+// FILE UPLOAD
+// ═══════════════════════════════════════════════════
+function handleFile(file) {
+  if (!file?.name.endsWith('.csv')) { showToast('Please upload a .csv file', true); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const { monthLabel, plans, rawRows } = parseCSV(e.target.result);
+      const store = loadStore();
+      store[monthLabel] = { plans, rawRows, ts: Date.now() };
+      saveStore(store);
+      activeMonth = monthLabel;
+      refreshChips();
+      renderMonth(monthLabel);
+      showToast(`✓ ${monthLabel} loaded — ${Object.keys(plans).length} plans, ${rawRows.length} rows`);
+    } catch(err) { showToast('Error: ' + err.message, true); }
+  };
+  reader.readAsText(file);
+}
+
+const uz = document.getElementById('upload-zone');
+const fi = document.getElementById('file-input');
+uz.onclick = () => fi.click();
+fi.onchange = e => { if(e.target.files[0]) handleFile(e.target.files[0]); fi.value=''; };
+uz.ondragover = e => { e.preventDefault(); uz.classList.add('over'); };
+uz.ondragleave = () => uz.classList.remove('over');
+uz.ondrop = e => { e.preventDefault(); uz.classList.remove('over'); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); };
+
+// ═══════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════
+let toastT;
+function showToast(msg, err=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show'+(err?' err':'');
+  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('show'), 3500);
+}
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+refreshChips();
+</script>
+</body>
+</html>
