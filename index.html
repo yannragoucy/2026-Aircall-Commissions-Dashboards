@@ -1304,11 +1304,31 @@ async function sbLoadComment(month, plan) {
 
 async function sbSaveComment(month, plan, content) {
   try {
-    await fetch(SB_URL, {
-      method: 'POST',
-      headers: SB_HDR,
-      body: JSON.stringify({ month, plan, content, updated_at: new Date().toISOString() })
-    });
+    // Check if row exists first
+    const check = await fetch(
+      `${SB_URL}?month=eq.${encodeURIComponent(month)}&plan=eq.${encodeURIComponent(plan)}&select=id`,
+      { headers: SB_HDR }
+    );
+    const existing = await check.json();
+
+    if (existing?.length > 0) {
+      // Update existing row via PATCH
+      await fetch(
+        `${SB_URL}?month=eq.${encodeURIComponent(month)}&plan=eq.${encodeURIComponent(plan)}`,
+        {
+          method: 'PATCH',
+          headers: { ...SB_HDR, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ content, updated_at: new Date().toISOString() })
+        }
+      );
+    } else {
+      // Insert new row
+      await fetch(SB_URL, {
+        method: 'POST',
+        headers: { ...SB_HDR, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ month, plan, content, updated_at: new Date().toISOString() })
+      });
+    }
   } catch(e) { console.warn('Supabase save failed:', e); }
 }
 
