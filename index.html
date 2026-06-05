@@ -1303,26 +1303,18 @@ async function sbLoadComment(month, plan) {
 }
 
 async function sbSaveComment(month, plan, content) {
+  const filter = `?month=eq.${encodeURIComponent(month)}&plan=eq.${encodeURIComponent(plan)}`;
+  const body = JSON.stringify({ content, updated_at: new Date().toISOString() });
   try {
-    // Check if row exists first
-    const check = await fetch(
-      `${SB_URL}?month=eq.${encodeURIComponent(month)}&plan=eq.${encodeURIComponent(plan)}&select=id`,
-      { headers: SB_HDR }
-    );
-    const existing = await check.json();
-
-    if (existing?.length > 0) {
-      // Update existing row via PATCH
-      await fetch(
-        `${SB_URL}?month=eq.${encodeURIComponent(month)}&plan=eq.${encodeURIComponent(plan)}`,
-        {
-          method: 'PATCH',
-          headers: { ...SB_HDR, 'Prefer': 'return=minimal' },
-          body: JSON.stringify({ content, updated_at: new Date().toISOString() })
-        }
-      );
-    } else {
-      // Insert new row
+    // Always PATCH first — updates existing row
+    const patch = await fetch(SB_URL + filter, {
+      method: 'PATCH',
+      headers: { ...SB_HDR, 'Prefer': 'return=minimal' },
+      body
+    });
+    // If no row matched (0 rows updated), fall back to INSERT
+    const count = patch.headers.get('content-range');
+    if (patch.status === 200 && count === '*/0') {
       await fetch(SB_URL, {
         method: 'POST',
         headers: { ...SB_HDR, 'Prefer': 'return=minimal' },
