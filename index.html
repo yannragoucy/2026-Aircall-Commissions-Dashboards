@@ -167,7 +167,7 @@ tr:hover td { background: #f9f8f5; }
 .qtr-comp-tab.active { color:var(--blue); border-bottom-color:var(--blue); }
 .qtr-comp-panel { display:none; }
 .qtr-comp-panel.active { display:block; }
-.qtr-two-col { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; }
+.qtr-two-col { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-top:16px; }
 .qtr-no-data { text-align:center; padding:48px 20px; color:var(--text3); font-family:var(--mono); font-size:12px; }
 
 /* ── COMMENT BOX ── */
@@ -531,7 +531,8 @@ function renderSubTab(idx, plan, people, subId) {
   const suffix = isDollar ? '$ (USD)' : '% vs Target';
   const setTitle = (el, t) => { if(el) el.textContent=t; };
   setTitle(document.getElementById(`sp_${idx}_${subId}_ic_title`), `Attainment ${suffix} — by IC`);
-  setTitle(document.getElementById(`sp_${idx}_${subId}_area_title`), `Attainment ${suffix} — by Area`);
+  setTitle(document.getElementById(`sp_${idx}_${subId}_area_title`), `Attainment ${suffix} — by Region`);
+  setTitle(document.getElementById(`sp_${idx}_${subId}_rawarea_title`), `Attainment ${suffix} — by Area`);
   setTitle(document.getElementById(`sp_${idx}_${subId}_level_title`), `Attainment ${suffix} — by Level`);
 
   const icId = `c_${idx}_${subId}_ic`;
@@ -551,7 +552,7 @@ function renderSubTab(idx, plan, people, subId) {
     }
   });
 
-  // by Area
+  // by Region
   const areaGrp = groupAvg(effectivePeople.map(p=>({...p,att:attFn(p)})), p=>areaToRegion(p.area||'Unknown'), p=>p.att);
   const areaId = `c_${idx}_${subId}_area`;
   destroyChart(areaId);
@@ -564,6 +565,23 @@ function renderSubTab(idx, plan, people, subId) {
     ]},
     options:{ responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{display:false}, tooltip:{...TT,callbacks:{label:ctx=>isDollar?` $${ctx.raw.toLocaleString()}`:` ${ctx.raw.toFixed(1)}% avg`}}},
+      scales:{ x:{grid:{display:false},ticks:{color:'#5a574f',font:{size:10}}}, y:{grid:{color:GRID},ticks:{...TICK,callback:v=>isDollar?'$'+Math.round(v/1000)+'k':v+'%'}} }
+    }
+  });
+
+  // by raw Area
+  const rawAreaGrp = groupAvg(effectivePeople.map(p=>({...p,att:attFn(p)})), p=>p.area||'Unknown', p=>p.att);
+  const rawAreaId = `c_${idx}_${subId}_rawarea`;
+  destroyChart(rawAreaId);
+  const raCtx = document.getElementById(rawAreaId)?.getContext('2d');
+  if (raCtx && rawAreaGrp.length) charts[rawAreaId] = new Chart(raCtx, {
+    type:'bar',
+    data:{ labels:rawAreaGrp.map(g=>g.key), datasets:[
+      { data:rawAreaGrp.map(g=>Math.round(g.avg*10)/10), backgroundColor:rawAreaGrp.map((_,i)=>col(i+2)+'bb'), borderRadius:4, borderSkipped:false },
+      ...(isDollar?[]:[{type:'line',data:rawAreaGrp.map(()=>100),borderColor:'rgba(0,0,0,0.18)',borderDash:[5,4],borderWidth:1.5,pointRadius:0,fill:false}])
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{...TT,callbacks:{label:ctx=>isDollar?` $${ctx.raw.toLocaleString()}`:` ${ctx.raw.toFixed(1)}% avg (${rawAreaGrp[ctx.dataIndex]?.n} ICs)`}}},
       scales:{ x:{grid:{display:false},ticks:{color:'#5a574f',font:{size:10}}}, y:{grid:{color:GRID},ticks:{...TICK,callback:v=>isDollar?'$'+Math.round(v/1000)+'k':v+'%'}} }
     }
   });
@@ -646,8 +664,12 @@ function buildPlanPanel(idx, plan) {
         </div>
         <div style="display:flex;flex-direction:column;gap:16px">
           <div class="section" style="flex:1">
-            <div class="section-title" id="sp_${idx}_${t.id}_area_title">Attainment — by Area</div>
+            <div class="section-title" id="sp_${idx}_${t.id}_area_title">Attainment — by Region</div>
             <div class="chart-wrap h260"><canvas id="c_${idx}_${t.id}_area"></canvas></div>
+          </div>
+          <div class="section" style="flex:1">
+            <div class="section-title" id="sp_${idx}_${t.id}_rawarea_title">Attainment — by Area</div>
+            <div class="chart-wrap h260"><canvas id="c_${idx}_${t.id}_rawarea"></canvas></div>
           </div>
           <div class="section" style="flex:1">
             <div class="section-title" id="sp_${idx}_${t.id}_level_title">Attainment — by Level</div>
@@ -802,7 +824,8 @@ function buildRawPanel() {
           <th data-col="month">Month <span class="sort-icon">↕</span></th>
           <th data-col="plan">Plan <span class="sort-icon">↕</span></th>
           <th data-col="name">Name <span class="sort-icon">↕</span></th>
-          <th data-col="area">Region <span class="sort-icon">↕</span></th>
+          <th data-col="area">Area ✎ <span class="sort-icon">↕</span></th>
+          <th data-col="region">Region <span class="sort-icon">↕</span></th>
           <th data-col="level">Level <span class="sort-icon">↕</span></th>
           <th data-col="currency">CCY <span class="sort-icon">↕</span></th>
           <th data-col="ote_usd">OTE (USD) ✎ <span class="sort-icon">↕</span></th>
@@ -850,24 +873,37 @@ async function finishEditCell(td, input) {
   const oldRaw = td.dataset.raw;
   const field  = td.dataset.field;
   const rowKey = td.dataset.key;
-  if (newVal === oldRaw) {
-    // Restore display
-    if (field === 'area') td.innerHTML = `<span style="color:var(--text2)">${areaToRegion(oldRaw)}</span>`;
-    else if (field === 'level') td.innerHTML = `<span style="font-family:var(--mono);font-size:11px;color:var(--text3)">${oldRaw||'—'}</span>`;
-    else if (field === 'notes') td.innerHTML = oldRaw || '<span style="color:var(--text3);font-size:11px">add note…</span>';
-    else td.innerHTML = parseFloat(oldRaw) ? `<span style="font-family:var(--mono)">$${Math.round(parseFloat(oldRaw)).toLocaleString()}</span>` : '—';
-    return;
-  }
+
+  const displayVal = v => {
+    if (field === 'area')  return `<span style="color:var(--text2)">${v||'—'}</span>`;
+    if (field === 'level') return `<span style="font-family:var(--mono);font-size:11px;color:var(--text3)">${v||'—'}</span>`;
+    if (field === 'notes') return v || '<span style="color:var(--text3);font-size:11px">add note…</span>';
+    const n = parseFloat(v); return n ? `<span style="font-family:var(--mono)">$${Math.round(n).toLocaleString()}</span>` : '—';
+  };
+
+  if (newVal === oldRaw) { td.innerHTML = displayVal(oldRaw); return; }
+
   td.dataset.raw = newVal;
+  td.innerHTML = displayVal(newVal);
+
+  // Flash the cell green to confirm save
+  td.style.transition = 'background 0.15s';
+  td.style.background = 'rgba(26,122,74,0.12)';
   const savEl = document.getElementById('raw-saving');
   if (savEl) savEl.classList.add('show');
-  // Update display
-  if (field === 'area') td.innerHTML = `<span style="color:var(--text2)">${areaToRegion(newVal)}</span>`;
-  else if (field === 'level') td.innerHTML = `<span style="font-family:var(--mono);font-size:11px;color:var(--text3)">${newVal||'—'}</span>`;
-  else if (field === 'notes') td.innerHTML = newVal || '<span style="color:var(--text3);font-size:11px">add note…</span>';
-  else { const v = parseFloat(newVal)||0; td.innerHTML = v ? `<span style="font-family:var(--mono)">$${Math.round(v).toLocaleString()}</span>` : '—'; }
+
   await saveRawOverride(rowKey, field, newVal);
-  setTimeout(() => savEl?.classList.remove('show'), 1800);
+
+  setTimeout(() => { td.style.background = ''; savEl?.classList.remove('show'); }, 1600);
+
+  // If area changed, update the adjacent region cell
+  if (field === 'area') {
+    const row = td.closest('tr');
+    if (row) {
+      const regionCell = row.querySelector('td:nth-child(5)');
+      if (regionCell) regionCell.textContent = areaToRegion(newVal);
+    }
+  }
 }
 
 function renderRawRows() {
@@ -912,7 +948,8 @@ function renderRawRows() {
       <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${r.month}</td>
       <td>${planBadge(r.plan)}</td>
       <td style="font-weight:500">${r.name}</td>
-      ${makeEditableCell(rowKey,'area', `<span style="color:var(--text2)">${region}</span>`, area)}
+      ${makeEditableCell(rowKey,'area', `<span style="color:var(--text2)">${area||'—'}</span>`, area)}
+      <td style="color:var(--text3);font-size:11px;font-family:var(--mono)">${region}</td>
       ${makeEditableCell(rowKey,'level', `<span style="font-family:var(--mono);font-size:11px;color:var(--text3)">${level||'—'}</span>`, level)}
       <td><span class="badge badge-blue">${r.currency}</span></td>
       ${makeEditableCell(rowKey,'ote_usd', fmt$(ote), ote)}
@@ -1141,11 +1178,11 @@ function renderQtrDimBar(canvasId, qtrData, selQtrs, plan, subId, dimKey) {
   if (!ctx) return;
   const isDollar = plan==='BDR Plan'&&subId==='closing';
   const dimSet = new Set();
-  selQtrs.forEach(q=>(qtrData[q]||[]).forEach(p=>dimSet.add(dimKey==='area' ? areaToRegion(p[dimKey]||'Unknown') : (p[dimKey]||'Unknown'))));
+  selQtrs.forEach(q=>(qtrData[q]||[]).forEach(p=>dimSet.add(dimKey==='region' ? areaToRegion(p.area||'Unknown') : (p[dimKey]||'Unknown'))));
   const dims = Array.from(dimSet).sort();
   const datasets = selQtrs.map(q=>{
     const dm={};
-    (qtrData[q]||[]).forEach(p=>{ const d = dimKey==='area' ? areaToRegion(p[dimKey]||'Unknown') : (p[dimKey]||'Unknown'); const v=qtrAtt(p,plan,subId); if(v!==null&&isFinite(v)){if(!dm[d])dm[d]={s:0,n:0};dm[d].s+=v;dm[d].n++;} });
+    (qtrData[q]||[]).forEach(p=>{ const d = dimKey==='region' ? areaToRegion(p.area||'Unknown') : (p[dimKey]||'Unknown'); const v=qtrAtt(p,plan,subId); if(v!==null&&isFinite(v)){if(!dm[d])dm[d]={s:0,n:0};dm[d].s+=v;dm[d].n++;} });
     return { label:q, data:dims.map(d=>dm[d]?Math.round(dm[d].s/dm[d].n*10)/10:null),
       backgroundColor:qRgba(q,0.78), borderColor:qHex(q), borderWidth:1, borderRadius:4, borderSkipped:false };
   });
@@ -1167,10 +1204,12 @@ function renderQtrCharts(idx, plan, qtrData, selQtrs, subId) {
   const suffix = isDollar?'$ (USD)':'% vs Target';
   const setT=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t;};
   setT(`qtric-title-${idx}-${subId}`,`Quarterly Attainment ${suffix} — by IC`);
-  setT(`qtrarea-title-${idx}-${subId}`,`Quarterly Avg ${suffix} — by Area`);
+  setT(`qtrarea-title-${idx}-${subId}`,`Quarterly Avg ${suffix} — by Region`);
+  setT(`qtrrawarea-title-${idx}-${subId}`,`Quarterly Avg ${suffix} — by Area`);
   setT(`qtrlevel-title-${idx}-${subId}`,`Quarterly Avg ${suffix} — by Level`);
   renderQtrICBar(`qc-ic-${idx}-${subId}`, qtrData, selQtrs, plan, subId);
-  renderQtrDimBar(`qc-area-${idx}-${subId}`, qtrData, selQtrs, plan, subId, 'area');
+  renderQtrDimBar(`qc-area-${idx}-${subId}`, qtrData, selQtrs, plan, subId, 'region');
+  renderQtrDimBar(`qc-rawarea-${idx}-${subId}`, qtrData, selQtrs, plan, subId, 'area');
   renderQtrDimBar(`qc-level-${idx}-${subId}`, qtrData, selQtrs, plan, subId, 'level');
 }
 
@@ -1220,8 +1259,12 @@ function renderQuarterlyView(idx, plan) {
       </div>
       <div class="qtr-two-col">
         <div class="qtr-section">
-          <div class="section-title" id="qtrarea-title-${idx}-${t.id}">By Area</div>
+          <div class="section-title" id="qtrarea-title-${idx}-${t.id}">By Region</div>
           <div class="chart-wrap" style="height:260px"><canvas id="qc-area-${idx}-${t.id}"></canvas></div>
+        </div>
+        <div class="qtr-section">
+          <div class="section-title" id="qtrrawarea-title-${idx}-${t.id}">By Area</div>
+          <div class="chart-wrap" style="height:260px"><canvas id="qc-rawarea-${idx}-${t.id}"></canvas></div>
         </div>
         <div class="qtr-section">
           <div class="section-title" id="qtrlevel-title-${idx}-${t.id}">By Level</div>
@@ -1712,6 +1755,7 @@ function showToast(msg, err=false) {
 // ═══════════════════════════════════════════════════
 (async () => {
   await initStore();
+  await loadRawOverrides(); // load overrides before any rendering
   refreshChips();
 })();
 </script>
