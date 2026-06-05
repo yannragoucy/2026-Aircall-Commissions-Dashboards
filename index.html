@@ -1287,42 +1287,57 @@ Keep it concise (max 300 words), use bullet points, be direct. No fluff. Flag ge
   }
 }
 
-const COMMENTS_KEY = 'ciq_comments_v1';
-function loadComments() { try { return JSON.parse(localStorage.getItem(COMMENTS_KEY) || '{}'); } catch { return {}; } }
-function saveComments(d) { try { localStorage.setItem(COMMENTS_KEY, JSON.stringify(d)); } catch {} }
-function commentKey(month, plan) { return `${month}||${plan}`; }
+// ═══════════════════════════════════════════════════
+// COMMENTS — Supabase persistent storage
+// ═══════════════════════════════════════════════════
+const SB_URL  = 'https://srsikuloqexocswedjgf.supabase.co/rest/v1/comments';
+const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNyc2lrdWxvcWV4b2Nzd2VkamdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NTI0ODcsImV4cCI6MjA5NjIyODQ4N30.Wu__nes4dyM_vMUr7rOFs4NFzVA3C9G1nd0PhhcOQ7I';
+const SB_HDR  = { 'Content-Type':'application/json', 'apikey':SB_KEY, 'Authorization':'Bearer '+SB_KEY, 'Prefer':'resolution=merge-duplicates' };
+
+async function sbLoadComment(month, plan) {
+  try {
+    const res = await fetch(`${SB_URL}?month=eq.${encodeURIComponent(month)}&plan=eq.${encodeURIComponent(plan)}&select=content`, { headers: SB_HDR });
+    const data = await res.json();
+    return data?.[0]?.content || '';
+  } catch { return ''; }
+}
+
+async function sbSaveComment(month, plan, content) {
+  try {
+    await fetch(SB_URL, {
+      method: 'POST',
+      headers: SB_HDR,
+      body: JSON.stringify({ month, plan, content, updated_at: new Date().toISOString() })
+    });
+  } catch(e) { console.warn('Supabase save failed:', e); }
+}
 
 function initCommentBox(idx, month, plan, people) {
-  const ta    = document.getElementById(`comment-ta-${idx}`);
-  const saved = document.getElementById(`comment-saved-${idx}`);
-  const ctx   = document.getElementById(`comment-ctx-${idx}`);
+  const ta     = document.getElementById(`comment-ta-${idx}`);
+  const saved  = document.getElementById(`comment-saved-${idx}`);
+  const ctx    = document.getElementById(`comment-ctx-${idx}`);
+  const status = document.getElementById(`comment-status-${idx}`);
   if (!ta) return;
 
-  // Store context for AI analysis
   commentContext[idx] = { month, plan, people: people || [] };
-
-  // Show context label
   if (ctx) ctx.textContent = `· ${month} › ${plan}`;
 
-  // Load existing text
-  const comments = loadComments();
-  ta.value = comments[commentKey(month, plan)] || '';
+  // Load from Supabase
+  ta.value = '';
+  ta.placeholder = 'Loading…';
+  sbLoadComment(month, plan).then(text => {
+    ta.value = text;
+    ta.placeholder = 'Click "Generate analysis" for an AI-powered analysis, or type your own notes…';
+  });
 
-  // Auto-save on input with debounce + "Saved" flash
+  // Auto-save on input with debounce
   let saveTimer;
   ta.oninput = () => {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      const all = loadComments();
-      const val = ta.value.trim();
-      if (val) all[commentKey(month, plan)] = ta.value;
-      else delete all[commentKey(month, plan)];
-      saveComments(all);
-      if (saved) {
-        saved.classList.add('show');
-        setTimeout(() => saved.classList.remove('show'), 1800);
-      }
-    }, 600);
+    saveTimer = setTimeout(async () => {
+      await sbSaveComment(month, plan, ta.value.trim());
+      if (saved) { saved.classList.add('show'); setTimeout(()=>saved.classList.remove('show'), 1800); }
+    }, 800);
   };
 }
 
