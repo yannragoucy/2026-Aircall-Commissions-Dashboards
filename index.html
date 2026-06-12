@@ -144,7 +144,30 @@ tr:hover td { background: #f9f8f5; }
 .mchip:hover { border-color:var(--blue); color:var(--blue); }
 .mchip.active { background:var(--blue); color:white; border-color:var(--blue); }
 
-/* ── VIEW TOGGLE (Monthly / Quarterly) ── */
+/* ── YTD PANEL ── */
+.ytd-section { background:var(--white); border:1px solid var(--border); border-radius:8px; padding:18px 20px; margin-bottom:16px; }
+.ytd-comp-tabs { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:14px; }
+.ytd-comp-tab { padding:7px 14px; border:none; background:none; cursor:pointer; font-size:11px; font-family:var(--mono); color:var(--text3); border-bottom:2px solid transparent; transition:all .15s; }
+.ytd-comp-tab:hover { color:var(--text); }
+.ytd-comp-tab.active { color:var(--blue); border-bottom-color:var(--blue); }
+.ytd-comp-panel { display:none; }
+.ytd-comp-panel.active { display:block; }
+.ytd-filter-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+.ytd-filter-bar label { font-size:10px; font-family:var(--mono); color:var(--text3); }
+.ytd-chip { padding:3px 11px; border-radius:20px; border:1px solid var(--border2); background:var(--white); color:var(--text2); font-size:11px; font-family:var(--mono); cursor:pointer; transition:all .15s; }
+.ytd-chip:hover { border-color:var(--blue); color:var(--blue); }
+.ytd-chip.active { background:var(--blue); color:white; border-color:var(--blue); }
+.ytd-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; }
+.ytd-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-top:16px; }
+.ytd-level-section { margin-top:16px; }
+.ytd-level-filters { display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+.ytd-level-filters label { font-size:11px; font-family:var(--mono); color:var(--text3); }
+.ytd-level-filters select { font-family:var(--mono); font-size:11px; padding:4px 8px; border:1px solid var(--border2); border-radius:6px; background:var(--bg); color:var(--text); cursor:pointer; }
+.ytd-level-filters select:focus { outline:none; border-color:var(--blue); }
+.ytd-level-filters .sep { font-size:10px; color:var(--text3); font-family:var(--mono); }
+.ytd-no-data { text-align:center; padding:40px; color:var(--text3); font-family:var(--mono); font-size:12px; }
+
+/* ── VIEW TOGGLE (Monthly / Quarterly / YTD) ── */
 .view-toggle { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:16px; }
 .view-btn { padding:10px 18px; border:none; background:none; cursor:pointer; font-size:12px; font-family:var(--sans); font-weight:600; color:var(--text3); border-bottom:2px solid transparent; transition:all .15s; }
 .view-btn:hover { color:var(--text2); }
@@ -690,6 +713,7 @@ function buildPlanPanel(idx, plan) {
     <div class="view-toggle">
       <button class="view-btn active" id="vbtn-monthly-${idx}">📅 Monthly</button>
       <button class="view-btn" id="vbtn-quarterly-${idx}">📊 Quarterly YTD</button>
+      <button class="view-btn" id="vbtn-ytd-${idx}">📈 YTD</button>
     </div>
 
     <div id="monthly-view-${idx}">
@@ -727,6 +751,23 @@ function buildPlanPanel(idx, plan) {
           <span class="comment-saved" id="qtr-note-saved-${idx}">✓ Saved</span>
         </div>
         <textarea class="comment-textarea" id="qtr-note-ta-${idx}" placeholder="Add quarterly notes — trends, quota calibration observations, action items…"></textarea>
+      </div>
+    </div>
+
+    <div id="ytd-view-${idx}" style="display:none">
+      <div id="ytd-content-${idx}">
+        <div class="ytd-no-data">Load monthly CSVs to view YTD</div>
+      </div>
+      <div class="qtr-note-box" style="margin-top:16px">
+        <div class="comment-box-header">
+          <div class="comment-box-title">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v9H9.5l-1.5 3-1.5-3H2V2z"/></svg>
+            YTD Notes
+            <span style="font-size:10px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0" id="ytd-note-ctx-${idx}"></span>
+          </div>
+          <span class="comment-saved" id="ytd-note-saved-${idx}">✓ Saved</span>
+        </div>
+        <textarea class="comment-textarea" id="ytd-note-ta-${idx}" placeholder="Add YTD notes — performance trends, calibration observations, actions…"></textarea>
       </div>
     </div>
 
@@ -1047,14 +1088,20 @@ function renderQtrScatter(canvasId, people) {
 // Grouped bar: IC attainment across selected quarters
 // ── REGION MAPPING ──────────────────────────────────
 const REGION_MAP = {
-  'FIME':'EMEA','UKI':'EMEA','DACH':'EMEA','Iberia':'EMEA',
-  'Iberia & LATAM':'EMEA','DACH & BeNeLux & Nordics':'EMEA',
-  'London':'EMEA','EMEA':'EMEA','2026-AE Manager/Director':'EMEA',
-  'NA-West':'NA','NA-WEST':'NA','NA-East':'NA','NA-EAST':'NA',
-  'LATAM':'NA','Latam':'NA',
-  'ANZ':'APAC','APAC':'APAC'
+  // EMEA
+  'fime':'EMEA','uki':'EMEA','dach':'EMEA','iberia':'EMEA',
+  'iberia & latam':'EMEA','dach & benelux & nordics':'EMEA',
+  'dach & benelux':'EMEA','benelux':'EMEA','nordics':'EMEA',
+  'london':'EMEA','emea':'EMEA','2026-ae manager/director':'EMEA',
+  // NA
+  'na-west':'NA','na-east':'NA','na west':'NA','na east':'NA',
+  'na':'NA','latam':'NA','latam (na)':'NA',
+  // APAC
+  'anz':'APAC','apac':'APAC','australia':'APAC','new zealand':'APAC',
 };
-function areaToRegion(area) { return REGION_MAP[area] || 'Unknown'; }
+function areaToRegion(area) {
+  return REGION_MAP[(area||'').toLowerCase().trim()] || 'Unknown';
+}
 
 function renderQtrICBar(canvasId, qtrData, selQtrs, plan, subId) {
   const wrap = document.getElementById(canvasId)?.closest('.chart-wrap');
@@ -1346,6 +1393,347 @@ function renderQuarterlyView(idx, plan) {
 }
 
 // ═══════════════════════════════════════════════════
+// YTD ENGINE
+// ═══════════════════════════════════════════════════
+
+function buildYTDData(plan) {
+  const store = loadStore();
+  const acc = {}; // name → accumulated person
+
+  Object.entries(store).forEach(([monthLabel, md]) => {
+    if (!md.plans?.[plan]) return;
+    // Only include months from the current year (year of latest stored month)
+    const d = new Date(monthLabel);
+    if (isNaN(d)) return;
+    const years = Object.keys(store).map(m => new Date(m).getFullYear()).filter(y => !isNaN(y));
+    const currentYear = Math.max(...years);
+    if (d.getFullYear() !== currentYear) return;
+
+    md.plans[plan].forEach(p => {
+      const rowKey = `${monthLabel}||${p.name}||${plan}`;
+      const ov = rawOverrides[rowKey] || {};
+      const effArea  = ov.area   ?? p.area;
+      const effLevel = ov.level  ?? p.level;
+      const effOTE   = ov.ote_usd    != null ? parseFloat(ov.ote_usd)    : p.ote;
+      const effPay   = ov.payout_usd != null ? parseFloat(ov.payout_usd) : p.payout;
+
+      if (!acc[p.name]) {
+        acc[p.name] = {
+          name: p.name, area: effArea, level: effLevel,
+          ote: 0, payout: 0, months: 0,
+          comp: { mrr_actual:0, mrr_quota:0, addons_actual:0, addons_quota:0,
+                  dp_actual:0, dp_target:0, closing_usd:0,
+                  qp_payout:0, qp_target:0,
+                  bdr_qp_ach:0, bdr_qp_tgt:0, bdr_cl_ach:0, bdr_cl_tgt:0 }
+        };
+      }
+      const a = acc[p.name];
+      a.area = effArea; a.level = effLevel; // keep latest
+      a.ote    += effOTE;
+      a.payout += effPay;
+      a.months++;
+      Object.keys(a.comp).forEach(k => { if (p.comp[k] !== undefined) a.comp[k] += p.comp[k]; });
+    });
+  });
+  return Object.values(acc).sort((a,b) => a.name.localeCompare(b.name));
+}
+
+function ytdAtt(person, plan, subId) {
+  const c = person.comp;
+  if (subId==='overall')  return person.ote>0 ? (person.payout/person.ote)*100 : null;
+  if (subId==='mrr')      return c.mrr_quota>0    ? (c.mrr_actual/c.mrr_quota)*100       : null;
+  if (subId==='addons')   return c.addons_quota>0  ? (c.addons_actual/c.addons_quota)*100  : null;
+  if (subId==='dp')       return c.dp_target>0     ? (c.dp_actual/c.dp_target)*100         : null;
+  if (subId==='closing')  return c.closing_usd != null ? c.closing_usd : null;
+  if (subId==='qp')       return c.qp_target>0     ? (c.qp_payout/c.qp_target)*100        : null;
+  if (subId==='bdrqp')    return c.bdr_qp_tgt>0    ? (c.bdr_qp_ach/c.bdr_qp_tgt)*100      : null;
+  if (subId==='bdrcl')    return c.bdr_cl_tgt>0    ? (c.bdr_cl_ach/c.bdr_cl_tgt)*100      : null;
+  return null;
+}
+
+function renderYTDScatter(canvasId, people) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if (!ctx) return;
+  const valid = people.filter(p => p.ote > 0);
+  if (!valid.length) return;
+  const maxV = Math.max(...valid.map(p => Math.max(p.ote, p.payout)), 1) * 1.15;
+  charts[canvasId] = new Chart(ctx, {
+    type: 'scatter',
+    data: { datasets: [
+      { data: valid.map(p => ({x:p.ote, y:p.payout, name:p.name})),
+        backgroundColor: valid.map(p => p.payout>=p.ote ? 'rgba(26,122,74,0.75)' : 'rgba(192,57,43,0.75)'),
+        borderColor:     valid.map(p => p.payout>=p.ote ? '#1a7a4a' : '#c0392b'),
+        borderWidth:1.5, pointRadius:6, pointHoverRadius:8 },
+      { data:[{x:0,y:0},{x:maxV,y:maxV}], type:'line',
+        borderColor:'rgba(29,111,206,0.35)', borderDash:[6,4], borderWidth:1.5, pointRadius:0, fill:false }
+    ]},
+    options: { responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{...TT, callbacks:{ label: c => { const d=c.raw; if(!d.name) return ''; return `${d.name}  OTE $${Math.round(d.x).toLocaleString()}  Payout $${Math.round(d.y).toLocaleString()}`; }}}},
+      scales:{
+        x:{ min:0, max:maxV, grid:{color:GRID}, ticks:{...TICK, callback:v=>'$'+Math.round(v/1000)+'k'}, title:{display:true, text:'YTD OTE (USD)', color:'#9c9890', font:{size:10}} },
+        y:{ min:0, max:maxV, grid:{color:GRID}, ticks:{...TICK, callback:v=>'$'+Math.round(v/1000)+'k'}, title:{display:true, text:'YTD Payout (USD)', color:'#9c9890', font:{size:10}} }
+      }
+    }
+  });
+}
+
+function renderYTDBar(canvasId, labels, values, isDollar) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if (!ctx) return;
+  const wrap = document.getElementById(canvasId)?.closest('.chart-wrap');
+  if (wrap) wrap.style.height = Math.max(280, labels.length * 26) + 'px';
+  charts[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets:[{
+      data: values,
+      backgroundColor: values.map(v => isDollar ? 'rgba(29,111,206,0.7)' : v>=100?'rgba(26,122,74,0.7)':v>=70?'rgba(29,111,206,0.65)':'rgba(192,57,43,0.65)'),
+      borderRadius:3, borderSkipped:false
+    }]},
+    options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{...TT, callbacks:{ label: c => isDollar ? ` $${Math.round(c.raw).toLocaleString()}` : ` ${c.raw.toFixed(1)}%` }}},
+      scales:{
+        x:{ grid:{color:GRID}, ticks:{...TICK, callback:v=>isDollar?'$'+Math.round(v/1000)+'k':v+'%'} },
+        y:{ grid:{display:false}, ticks:{...TICK} }
+      }
+    }
+  });
+}
+
+function renderYTDGroupBar(canvasId, labels, values, colors) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId)?.getContext('2d');
+  if (!ctx) return;
+  charts[canvasId] = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[
+      { data:values, backgroundColor:colors, borderRadius:4, borderSkipped:false },
+      { type:'line', data:labels.map(()=>100), borderColor:'rgba(0,0,0,0.18)', borderDash:[5,4], borderWidth:1.5, pointRadius:0, fill:false }
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{...TT, callbacks:{ label:c=>` ${c.raw.toFixed(1)}%` }}},
+      scales:{ x:{grid:{display:false}, ticks:{color:'#5a574f',font:{size:11}}}, y:{grid:{color:GRID}, ticks:{...TICK, callback:v=>v+'%'}} }
+    }
+  });
+}
+
+function renderYTDCompPanel(idx, plan, people, subId, levelFilter) {
+  const isDollar = plan==='BDR Plan' && subId==='closing';
+  const PALETTE = ['#1d6fce','#e84e1b','#1a7a4a','#b45309','#7c3aed','#0891b2','#be123c','#15803d'];
+  const col = i => PALETTE[i % PALETTE.length];
+
+  // Apply level filter if set
+  const filtered = levelFilter && levelFilter !== 'All'
+    ? people.filter(p => p.level === levelFilter)
+    : people;
+
+  const attFn = p => ytdAtt(p, plan, subId);
+
+  // by IC
+  const sorted = [...filtered].map(p=>({...p, att:attFn(p)}))
+    .filter(p => p.att !== null && isFinite(p.att))
+    .sort((a,b) => b.att - a.att);
+  const icLabels = sorted.map(p => { const pts=p.name.split(' '); return pts[0]+(pts[1]?' '+pts[1][0]+'.':''); });
+  const icVals = sorted.map(p => isDollar ? Math.round(p.att) : Math.round(p.att*10)/10);
+  renderYTDBar(`ytd_ic_${idx}_${subId}`, icLabels, icVals, isDollar);
+
+  // by Region
+  const regMap = {};
+  filtered.forEach(p => {
+    const r = areaToRegion(p.area||'Unknown');
+    const v = attFn(p);
+    if (v!==null && isFinite(v)) { if(!regMap[r]) regMap[r]={s:0,n:0}; regMap[r].s+=v; regMap[r].n++; }
+  });
+  const regKeys = Object.keys(regMap).sort();
+  if (!isDollar) {
+    renderYTDGroupBar(`ytd_reg_${idx}_${subId}`, regKeys,
+      regKeys.map(r => Math.round(regMap[r].s/regMap[r].n*10)/10),
+      regKeys.map((_,i) => col(i)+'bb'));
+  } else {
+    const vals = regKeys.map(r => Math.round(regMap[r].s/regMap[r].n));
+    renderYTDBar(`ytd_reg_${idx}_${subId}`, regKeys, vals, true);
+  }
+
+  // by Area
+  const areaMap = {};
+  filtered.forEach(p => {
+    const a = p.area||'Unknown';
+    const v = attFn(p);
+    if (v!==null && isFinite(v)) { if(!areaMap[a]) areaMap[a]={s:0,n:0}; areaMap[a].s+=v; areaMap[a].n++; }
+  });
+  const areaKeys = Object.keys(areaMap).sort();
+  if (!isDollar) {
+    renderYTDGroupBar(`ytd_area_${idx}_${subId}`, areaKeys,
+      areaKeys.map(a => Math.round(areaMap[a].s/areaMap[a].n*10)/10),
+      areaKeys.map((_,i) => col(i+2)+'bb'));
+  } else {
+    renderYTDBar(`ytd_area_${idx}_${subId}`, areaKeys, areaKeys.map(a=>Math.round(areaMap[a].s/areaMap[a].n)), true);
+  }
+
+  // by Level (with filter chips in container — chart only here)
+  const lvlMap = {};
+  people.forEach(p => { // always use unfiltered people for level chart
+    const l = p.level||'Unknown';
+    const v = attFn(p);
+    if (v!==null && isFinite(v)) { if(!lvlMap[l]) lvlMap[l]={s:0,n:0}; lvlMap[l].s+=v; lvlMap[l].n++; }
+  });
+  const lvlKeys = Object.keys(lvlMap).sort();
+  if (!isDollar) {
+    renderYTDGroupBar(`ytd_lvl_${idx}_${subId}`, lvlKeys,
+      lvlKeys.map(l => Math.round(lvlMap[l].s/lvlMap[l].n*10)/10),
+      lvlKeys.map((_,i) => col(i+4)+'bb'));
+  } else {
+    renderYTDBar(`ytd_lvl_${idx}_${subId}`, lvlKeys, lvlKeys.map(l=>Math.round(lvlMap[l].s/lvlMap[l].n)), true);
+  }
+}
+
+function renderYTDView(idx, plan) {
+  const container = document.getElementById(`ytd-content-${idx}`);
+  if (!container) return;
+  const people = buildYTDData(plan);
+  if (!people.length) { container.innerHTML='<div class="ytd-no-data">No data available</div>'; return; }
+
+  const compTabs = subTabsForPlan(plan);
+  const isDollar0 = plan==='BDR Plan';
+
+  // Level filter options (unique levels across all people)
+  const levels = ['All', ...Array.from(new Set(people.map(p=>p.level).filter(l=>l&&l!=='Unknown'))).sort()];
+  const levelChipsHTML = levels.map(l =>
+    `<span class="ytd-chip${l==='All'?' active':''}" data-ytdlevel="${l}">${l}</span>`
+  ).join('');
+
+  const compTabsHTML = compTabs.map((t,i) =>
+    `<button class="ytd-comp-tab${i===0?' active':''}" data-ytdcomp="${t.id}">${t.label}</button>`
+  ).join('');
+
+  const compPanelsHTML = compTabs.map((t,i) => {
+    const regions = Array.from(new Set(people.map(p=>areaToRegion(p.area||'Unknown')).filter(r=>r!=='Unknown'))).sort();
+    const areas   = Array.from(new Set(people.map(p=>p.area||'Unknown').filter(a=>a!=='Unknown'))).sort();
+    const regOpts  = `<option value="All">All regions</option>${regions.map(r=>`<option value="${r}">${r}</option>`).join('')}`;
+    const areaOpts = `<option value="All">All areas</option>${areas.map(a=>`<option value="${a}">${a}</option>`).join('')}`;
+    return `
+    <div class="ytd-comp-panel${i===0?' active':''}" id="ytdp_${idx}_${t.id}">
+      <div class="ytd-section" style="margin-bottom:16px">
+        <div class="section-title">YTD Attainment — by IC</div>
+        <div class="chart-wrap" style="height:300px"><canvas id="ytd_ic_${idx}_${t.id}"></canvas></div>
+      </div>
+      <div class="ytd-grid-2">
+        <div class="ytd-section">
+          <div class="section-title">By Region</div>
+          <div class="chart-wrap" style="height:220px"><canvas id="ytd_reg_${idx}_${t.id}"></canvas></div>
+        </div>
+        <div class="ytd-section">
+          <div class="section-title">By Area</div>
+          <div class="chart-wrap" style="height:220px"><canvas id="ytd_area_${idx}_${t.id}"></canvas></div>
+        </div>
+      </div>
+      <div class="ytd-section ytd-level-section">
+        <div class="section-title">By Level</div>
+        <div class="ytd-level-filters" id="ytd-lvl-filter-${idx}-${t.id}">
+          <label>Filter by region:</label>
+          <select class="ytd-sel-region" data-ytdidx="${idx}" data-ytdcomp="${t.id}">
+            ${regOpts}
+          </select>
+          <span class="sep">— or —</span>
+          <label>by area:</label>
+          <select class="ytd-sel-area" data-ytdidx="${idx}" data-ytdcomp="${t.id}">
+            ${areaOpts}
+          </select>
+        </div>
+        <div class="chart-wrap" style="height:240px"><canvas id="ytd_lvl_${idx}_${t.id}"></canvas></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="ytd-section" style="margin-bottom:16px">
+      <div class="section-title">YTD OTE vs Payout — by IC (USD)</div>
+      <div class="legend-row">
+        <div class="leg"><div class="leg-dot" style="background:#1a7a4a"></div>Above OTE</div>
+        <div class="leg"><div class="leg-dot" style="background:#c0392b"></div>Below OTE</div>
+        <div class="leg"><div class="leg-dashed"></div>OTE line (y=x)</div>
+      </div>
+      <div class="chart-wrap h300"><canvas id="ytd_scatter_${idx}"></canvas></div>
+    </div>
+    <div class="ytd-section">
+      <div class="section-title" style="margin-bottom:10px">YTD Attainment — by Component</div>
+      <div class="ytd-comp-tabs" id="ytd-comp-tabs-${idx}">${compTabsHTML}</div>
+      ${compPanelsHTML}
+    </div>`;
+
+  container.__people  = people;
+  container.__plan    = plan;
+  container.__subId   = compTabs[0].id;
+  container.__lvlFilter = 'All';
+
+  // Wire component tabs
+  container.querySelectorAll(`#ytd-comp-tabs-${idx} .ytd-comp-tab`).forEach(btn => {
+    btn.onclick = () => {
+      container.querySelectorAll(`#ytd-comp-tabs-${idx} .ytd-comp-tab`).forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const subId = btn.dataset.ytdcomp;
+      container.querySelectorAll(`[id^="ytdp_${idx}_"]`).forEach(p=>p.classList.remove('active'));
+      document.getElementById(`ytdp_${idx}_${subId}`)?.classList.add('active');
+      container.__subId = subId;
+      renderYTDCompPanel(idx, plan, container.__people, subId, container.__lvlFilter);
+    };
+  });
+
+  // Wire level filter dropdowns — region and area are mutually exclusive
+  compTabs.forEach(t => {
+    const filterBar = document.getElementById(`ytd-lvl-filter-${idx}-${t.id}`);
+    if (!filterBar) return;
+
+    const selReg  = filterBar.querySelector('.ytd-sel-region');
+    const selArea = filterBar.querySelector('.ytd-sel-area');
+
+    selReg.onchange = () => {
+      // Reset area dropdown when region is selected
+      if (selReg.value !== 'All') selArea.value = 'All';
+      const fp = selReg.value === 'All'
+        ? container.__people
+        : container.__people.filter(p => areaToRegion(p.area||'Unknown') === selReg.value);
+      redrawLevelChart(idx, plan, fp, t.id);
+    };
+
+    selArea.onchange = () => {
+      // Reset region dropdown when area is selected
+      if (selArea.value !== 'All') selReg.value = 'All';
+      const fp = selArea.value === 'All'
+        ? container.__people
+        : container.__people.filter(p => p.area === selArea.value);
+      redrawLevelChart(idx, plan, fp, t.id);
+    };
+  });
+
+  // Initial render
+  renderYTDScatter(`ytd_scatter_${idx}`, people);
+  renderYTDCompPanel(idx, plan, people, compTabs[0].id, 'All');
+}
+
+function redrawLevelChart(idx, plan, filteredPeople, subId) {
+  const isDollar = plan==='BDR Plan' && subId==='closing';
+  const PALETTE = ['#1d6fce','#e84e1b','#1a7a4a','#b45309','#7c3aed','#0891b2'];
+  const col = i => PALETTE[i%PALETTE.length];
+  const attFn = p => ytdAtt(p, plan, subId);
+  const lvlMap = {};
+  filteredPeople.forEach(p => {
+    const l = p.level||'Unknown';
+    const v = attFn(p);
+    if (v!==null && isFinite(v)) { if(!lvlMap[l]) lvlMap[l]={s:0,n:0}; lvlMap[l].s+=v; lvlMap[l].n++; }
+  });
+  const lvlKeys = Object.keys(lvlMap).sort();
+  if (!isDollar) {
+    renderYTDGroupBar(`ytd_lvl_${idx}_${subId}`, lvlKeys,
+      lvlKeys.map(l=>Math.round(lvlMap[l].s/lvlMap[l].n*10)/10),
+      lvlKeys.map((_,i)=>col(i+4)+'bb'));
+  } else {
+    renderYTDBar(`ytd_lvl_${idx}_${subId}`, lvlKeys, lvlKeys.map(l=>Math.round(lvlMap[l].s/lvlMap[l].n)), true);
+  }
+}
+
+// ═══════════════════════════════════════════════════
 // COMMENTS — stored by "Month|Plan" key in localStorage
 // ═══════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════
@@ -1531,6 +1919,28 @@ function initQtrNoteBox(idx, plan) {
   };
 }
 
+function initYTDNoteBox(idx, plan) {
+  const ta    = document.getElementById(`ytd-note-ta-${idx}`);
+  const saved = document.getElementById(`ytd-note-saved-${idx}`);
+  const ctx   = document.getElementById(`ytd-note-ctx-${idx}`);
+  if (!ta) return;
+  if (ctx) ctx.textContent = `· ${plan} · YTD`;
+  const key = `YTD||${plan}`;
+  ta.value = ''; ta.placeholder = 'Loading…';
+  sbLoadComment(key, 'ytd').then(text => {
+    ta.value = text;
+    ta.placeholder = 'Add YTD notes — performance trends, calibration observations, actions…';
+  });
+  let saveTimer;
+  ta.oninput = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      await sbSaveComment(key, 'ytd', ta.value.trim());
+      if (saved) { saved.classList.add('show'); setTimeout(()=>saved.classList.remove('show'), 1800); }
+    }, 800);
+  };
+}
+
 // ═══════════════════════════════════════════════════
 // RENDER MONTH
 // ═══════════════════════════════════════════════════
@@ -1623,14 +2033,18 @@ function renderMonth(key) {
     });
 
     // Monthly ↔ Quarterly toggle
-    const vM = document.getElementById(`vbtn-monthly-${idx}`);
-    const vQ = document.getElementById(`vbtn-quarterly-${idx}`);
-    const mV = document.getElementById(`monthly-view-${idx}`);
-    const qV = document.getElementById(`quarterly-view-${idx}`);
-    if (vM && vQ) {
-      vM.onclick = () => { vM.classList.add('active'); vQ.classList.remove('active'); mV.style.display=''; qV.style.display='none'; };
-      vQ.onclick = () => { vQ.classList.add('active'); vM.classList.remove('active'); qV.style.display=''; mV.style.display='none'; renderQuarterlyView(idx, panel.__plan); initQtrNoteBox(idx, panel.__plan); };
-    }
+    const vM  = document.getElementById(`vbtn-monthly-${idx}`);
+    const vQ  = document.getElementById(`vbtn-quarterly-${idx}`);
+    const vYTD= document.getElementById(`vbtn-ytd-${idx}`);
+    const mV  = document.getElementById(`monthly-view-${idx}`);
+    const qV  = document.getElementById(`quarterly-view-${idx}`);
+    const yV  = document.getElementById(`ytd-view-${idx}`);
+    const allBtns = [vM, vQ, vYTD];
+    const allViews = [mV, qV, yV];
+    const hideAll = () => { allBtns.forEach(b=>b?.classList.remove('active')); allViews.forEach(v=>{ if(v) v.style.display='none'; }); };
+    if (vM)   vM.onclick   = () => { hideAll(); vM.classList.add('active');   mV.style.display=''; };
+    if (vQ)   vQ.onclick   = () => { hideAll(); vQ.classList.add('active');   qV.style.display=''; renderQuarterlyView(idx, panel.__plan); initQtrNoteBox(idx, panel.__plan); };
+    if (vYTD) vYTD.onclick = () => { hideAll(); vYTD.classList.add('active'); yV.style.display=''; renderYTDView(idx, panel.__plan); initYTDNoteBox(idx, panel.__plan); };
   });
 
   // Raw Data tab
