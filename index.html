@@ -547,9 +547,10 @@ function renderSubTab(idx, plan, people, subId) {
     .map(p=>({...p, att:attFn(p)}))
     .filter(p => p.att !== null && isFinite(p.att))
     .sort((a,b)=>b.att-a.att);
-  const icLabels = sorted.map(p=>{ const pts=p.name.split(' '); return pts[0]+(pts[1]?' '+pts[1][0]+'.':''); });
-  const icVals = sorted.map(p=>isDollar?Math.round(p.att):Math.round(p.att*10)/10);
-  const icColors = sorted.map(p=> isDollar?'rgba(29,111,206,0.7)':(p.att>=100?'rgba(26,122,74,0.7)':p.att>=70?'rgba(29,111,206,0.65)':'rgba(192,57,43,0.65)'));
+  // Reverse so highest attainment appears at top of horizontal bar chart
+  const icLabels = sorted.slice().reverse().map(p=>{ const pts=p.name.split(' '); return pts[0]+(pts[1]?' '+pts[1][0]+'.':''); });
+  const icVals   = sorted.slice().reverse().map(p=>isDollar?Math.round(p.att):Math.round(p.att*10)/10);
+  const icColors = sorted.slice().reverse().map(p=> isDollar?'rgba(29,111,206,0.7)':(p.att>=100?'rgba(26,122,74,0.7)':p.att>=70?'rgba(29,111,206,0.65)':'rgba(192,57,43,0.65)'));
 
   const suffix = isDollar ? '$ (USD)' : '% vs Target';
   const setTitle = (el, t) => { if(el) el.textContent=t; };
@@ -651,13 +652,12 @@ function groupAvg(arr, keyFn, attFn) {
   arr.forEach(p => {
     const k = keyFn(p); if (!m[k]) m[k] = [];
     const a = attFn(p);
-    // include 0% — only skip null (no valid denominator) and non-finite
     if (a !== null && isFinite(a)) m[k].push(a);
   });
   return Object.entries(m)
-    .map(([k,vs]) => ({ key:k, avg:vs.length ? vs.reduce((s,v)=>s+v,0)/vs.length : 0, n:vs.length }))
+    .map(([k,vs]) => ({ key:k, avg:vs.length?vs.reduce((s,v)=>s+v,0)/vs.length:0, n:vs.length }))
     .filter(g => g.n > 0)
-    .sort((a,b) => b.avg-a.avg);
+    .sort((a,b) => b.avg - a.avg); // always descending
 }
 
 // ═══════════════════════════════════════════════════
@@ -735,6 +735,23 @@ function buildPlanPanel(idx, plan) {
         <div class="sub-tabs-bar">${subTabsHTML}</div>
         ${subPanelsHTML}
       </div>
+      <div class="comment-box" id="comment-box-${idx}">
+        <div class="comment-box-header">
+          <div class="comment-box-title">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v9H9.5l-1.5 3-1.5-3H2V2z"/></svg>
+            Notes &amp; Commentary
+            <span style="font-size:10px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0" id="comment-ctx-${idx}"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button id="comment-gen-${idx}" onclick="generateAnalysis(${idx})" style="display:flex;align-items:center;gap:5px;padding:4px 11px;border-radius:6px;border:1px solid var(--blue);background:var(--blue-bg);color:var(--blue);font-family:var(--mono);font-size:11px;font-weight:500;cursor:pointer;transition:all .15s" onmouseover="this.style.background='var(--blue)';this.style.color='white'" onmouseout="this.style.background='var(--blue-bg)';this.style.color='var(--blue)'">
+              ✦ Generate analysis
+            </button>
+            <span class="comment-saved" id="comment-saved-${idx}">✓ Saved</span>
+          </div>
+        </div>
+        <div id="comment-status-${idx}" style="font-size:11px;font-family:var(--mono);color:var(--text3);padding:4px 0;display:none"></div>
+        <textarea class="comment-textarea" id="comment-ta-${idx}" placeholder="Click &quot;Generate analysis&quot; to get an AI-powered analysis, or type your own notes…"></textarea>
+      </div>
     </div>
 
     <div id="quarterly-view-${idx}" style="display:none">
@@ -769,24 +786,6 @@ function buildPlanPanel(idx, plan) {
         </div>
         <textarea class="comment-textarea" id="ytd-note-ta-${idx}" placeholder="Add YTD notes — performance trends, calibration observations, actions…"></textarea>
       </div>
-    </div>
-
-    <div class="comment-box" id="comment-box-${idx}">
-      <div class="comment-box-header">
-        <div class="comment-box-title">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v9H9.5l-1.5 3-1.5-3H2V2z"/></svg>
-          Notes &amp; Commentary
-          <span style="font-size:10px;font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0" id="comment-ctx-${idx}"></span>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <button id="comment-gen-${idx}" onclick="generateAnalysis(${idx})" style="display:flex;align-items:center;gap:5px;padding:4px 11px;border-radius:6px;border:1px solid var(--blue);background:var(--blue-bg);color:var(--blue);font-family:var(--mono);font-size:11px;font-weight:500;cursor:pointer;transition:all .15s" onmouseover="this.style.background='var(--blue)';this.style.color='white'" onmouseout="this.style.background='var(--blue-bg)';this.style.color='var(--blue)'">
-            ✦ Generate analysis
-          </button>
-          <span class="comment-saved" id="comment-saved-${idx}">✓ Saved</span>
-        </div>
-      </div>
-      <div id="comment-status-${idx}" style="font-size:11px;font-family:var(--mono);color:var(--text3);padding:4px 0;display:none"></div>
-      <textarea class="comment-textarea" id="comment-ta-${idx}" placeholder="Click "Generate analysis" to get an AI-powered analysis, or type your own notes…"></textarea>
     </div>`;
 }
 
@@ -1140,7 +1139,9 @@ function renderQtrICBar(canvasId, qtrData, selQtrs, plan, subId) {
       });
 
     const names = filtered.map(([n])=>n);
-    const shortNames = names.map(n=>{ const p=n.split(' '); return p[0]+(p[1]?' '+p[1][0]+'.':''); });
+    // Reverse so highest at top in horizontal bar chart
+    const namesRev = [...names].reverse();
+    const shortNames = namesRev.map(n=>{ const p=n.split(' '); return p[0]+(p[1]?' '+p[1][0]+'.':''); });
 
     if (!names.length) {
       canvasEl.style.display='none';
@@ -1158,7 +1159,7 @@ function renderQtrICBar(canvasId, qtrData, selQtrs, plan, subId) {
     const ctx = canvasEl.getContext('2d');
     const datasets = selQtrs.map(q=>({
       label: q,
-      data: names.map(n => filtered.find(([name])=>name===n)?.[1].quarters[q] ?? null),
+      data: namesRev.map(n => filtered.find(([name])=>name===n)?.[1].quarters[q] ?? null),
       backgroundColor: qRgba(q, 0.78),
       borderColor: qHex(q),
       borderWidth: 1, borderRadius: 3, borderSkipped: false
@@ -1226,7 +1227,17 @@ function renderQtrDimBar(canvasId, qtrData, selQtrs, plan, subId, dimKey) {
   const isDollar = plan==='BDR Plan'&&subId==='closing';
   const dimSet = new Set();
   selQtrs.forEach(q=>(qtrData[q]||[]).forEach(p=>dimSet.add(dimKey==='region' ? areaToRegion(p.area||'Unknown') : (p[dimKey]||'Unknown'))));
-  const dims = Array.from(dimSet).sort();
+  // Sort dims by avg attainment descending across selected quarters
+  const dimAvg = {};
+  Array.from(dimSet).forEach(d => {
+    const vals = [];
+    selQtrs.forEach(q=>(qtrData[q]||[]).forEach(p=>{
+      const pk = dimKey==='region' ? areaToRegion(p.area||'Unknown') : (p[dimKey]||'Unknown');
+      if (pk===d) { const v=qtrAtt(p,plan,subId); if(v!==null&&isFinite(v)) vals.push(v); }
+    }));
+    dimAvg[d] = vals.length ? vals.reduce((s,v)=>s+v,0)/vals.length : -Infinity;
+  });
+  const dims = Array.from(dimSet).sort((a,b) => dimAvg[b] - dimAvg[a]);
   const datasets = selQtrs.map(q=>{
     const dm={};
     (qtrData[q]||[]).forEach(p=>{ const d = dimKey==='region' ? areaToRegion(p.area||'Unknown') : (p[dimKey]||'Unknown'); const v=qtrAtt(p,plan,subId); if(v!==null&&isFinite(v)){if(!dm[d])dm[d]={s:0,n:0};dm[d].s+=v;dm[d].n++;} });
@@ -1483,12 +1494,15 @@ function renderYTDBar(canvasId, labels, values, isDollar) {
   const ctx = document.getElementById(canvasId)?.getContext('2d');
   if (!ctx) return;
   const wrap = document.getElementById(canvasId)?.closest('.chart-wrap');
-  if (wrap) wrap.style.height = Math.max(280, labels.length * 26) + 'px';
+  // Reverse so highest is at top (Chart.js horizontal bars render bottom→top)
+  const rLabels = [...labels].reverse();
+  const rValues = [...values].reverse();
+  if (wrap) wrap.style.height = Math.max(280, rLabels.length * 26) + 'px';
   charts[canvasId] = new Chart(ctx, {
     type: 'bar',
-    data: { labels, datasets:[{
-      data: values,
-      backgroundColor: values.map(v => isDollar ? 'rgba(29,111,206,0.7)' : v>=100?'rgba(26,122,74,0.7)':v>=70?'rgba(29,111,206,0.65)':'rgba(192,57,43,0.65)'),
+    data: { labels: rLabels, datasets:[{
+      data: rValues,
+      backgroundColor: rValues.map(v => isDollar ? 'rgba(29,111,206,0.7)' : v>=100?'rgba(26,122,74,0.7)':v>=70?'rgba(29,111,206,0.65)':'rgba(192,57,43,0.65)'),
       borderRadius:3, borderSkipped:false
     }]},
     options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
@@ -1545,7 +1559,7 @@ function renderYTDCompPanel(idx, plan, people, subId, levelFilter) {
     const v = attFn(p);
     if (v!==null && isFinite(v)) { if(!regMap[r]) regMap[r]={s:0,n:0}; regMap[r].s+=v; regMap[r].n++; }
   });
-  const regKeys = Object.keys(regMap).sort();
+  const regKeys = Object.keys(regMap).sort((a,b) => regMap[b].s/regMap[b].n - regMap[a].s/regMap[a].n);
   if (!isDollar) {
     renderYTDGroupBar(`ytd_reg_${idx}_${subId}`, regKeys,
       regKeys.map(r => Math.round(regMap[r].s/regMap[r].n*10)/10),
@@ -1562,7 +1576,7 @@ function renderYTDCompPanel(idx, plan, people, subId, levelFilter) {
     const v = attFn(p);
     if (v!==null && isFinite(v)) { if(!areaMap[a]) areaMap[a]={s:0,n:0}; areaMap[a].s+=v; areaMap[a].n++; }
   });
-  const areaKeys = Object.keys(areaMap).sort();
+  const areaKeys = Object.keys(areaMap).sort((a,b) => areaMap[b].s/areaMap[b].n - areaMap[a].s/areaMap[a].n);
   if (!isDollar) {
     renderYTDGroupBar(`ytd_area_${idx}_${subId}`, areaKeys,
       areaKeys.map(a => Math.round(areaMap[a].s/areaMap[a].n*10)/10),
@@ -1578,7 +1592,7 @@ function renderYTDCompPanel(idx, plan, people, subId, levelFilter) {
     const v = attFn(p);
     if (v!==null && isFinite(v)) { if(!lvlMap[l]) lvlMap[l]={s:0,n:0}; lvlMap[l].s+=v; lvlMap[l].n++; }
   });
-  const lvlKeys = Object.keys(lvlMap).sort();
+  const lvlKeys = Object.keys(lvlMap).sort((a,b) => lvlMap[b].s/lvlMap[b].n - lvlMap[a].s/lvlMap[a].n);
   if (!isDollar) {
     renderYTDGroupBar(`ytd_lvl_${idx}_${subId}`, lvlKeys,
       lvlKeys.map(l => Math.round(lvlMap[l].s/lvlMap[l].n*10)/10),
@@ -1723,7 +1737,7 @@ function redrawLevelChart(idx, plan, filteredPeople, subId) {
     const v = attFn(p);
     if (v!==null && isFinite(v)) { if(!lvlMap[l]) lvlMap[l]={s:0,n:0}; lvlMap[l].s+=v; lvlMap[l].n++; }
   });
-  const lvlKeys = Object.keys(lvlMap).sort();
+  const lvlKeys = Object.keys(lvlMap).sort((a,b) => lvlMap[b].s/lvlMap[b].n - lvlMap[a].s/lvlMap[a].n);
   if (!isDollar) {
     renderYTDGroupBar(`ytd_lvl_${idx}_${subId}`, lvlKeys,
       lvlKeys.map(l=>Math.round(lvlMap[l].s/lvlMap[l].n*10)/10),
