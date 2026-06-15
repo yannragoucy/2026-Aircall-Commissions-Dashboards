@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AE Quota Simulator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f5f4f0;--bg2:#eceae4;--white:#fff;--border:#dedad2;--border2:#ccc9c0;
+  --text:#1a1916;--text2:#5a574f;--text3:#9c9890;
+  --blue:#1d6fce;--blue-bg:#e8f0fb;--green:#1a7a4a;--green-bg:#e6f4ec;
+  --amber:#b45309;--amber-bg:#fef3e2;--red:#c0392b;--red-bg:#fdecea;
+  --purple:#7c3aed;--purple-bg:#f3f0ff;
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;min-height:100vh}
+
+header{background:var(--white);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:200}
+.header-left{display:flex;align-items:center;gap:12px}
+.header-icon{width:32px;height:32px;background:var(--purple);border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-size:15px;flex-shrink:0}
+header h1{font-size:15px;font-weight:600}
+header p{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:1px}
+.back-link{font-size:12px;font-family:var(--mono);color:var(--text3);text-decoration:none;border:1px solid var(--border2);padding:5px 12px;border-radius:6px;transition:all .15s}
+.back-link:hover{border-color:var(--blue);color:var(--blue)}
+
+.main{padding:24px 28px;display:flex;flex-direction:column;gap:20px}
+.card{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:18px 20px}
+.card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.2px;color:var(--text3);margin-bottom:14px}
+
+/* ── FILTERS BAR ── */
+.filters-bar{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:14px 20px;display:flex;flex-direction:column;gap:12px}
+.filters-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.filter-count{font-size:10px;font-family:var(--mono);color:var(--text3);margin-left:auto}
+.clear-btn{font-size:10px;font-family:var(--mono);color:var(--text3);background:none;border:none;cursor:pointer;text-decoration:underline;padding:2px 4px}
+.clear-btn:hover{color:var(--red)}
+
+/* dropdown */
+.fdd{position:relative;display:inline-block}
+.fdd-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text2);font-size:11px;font-family:var(--mono);cursor:pointer;transition:all .12s;white-space:nowrap;user-select:none}
+.fdd-btn:hover{border-color:var(--blue);color:var(--blue)}
+.fdd-btn.has-value{border-color:var(--blue);background:var(--blue-bg);color:var(--blue);font-weight:600}
+.fdd-btn .fdd-label{color:var(--text3);font-weight:400;margin-right:2px}
+.fdd-btn .fdd-caret{font-size:9px;opacity:0.6;transition:transform .15s}
+.fdd-btn.open .fdd-caret{transform:rotate(180deg)}
+.fdd-panel{display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:180px;max-width:280px;background:var(--white);border:1px solid var(--border2);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.10);z-index:300;padding:6px 0;max-height:280px;overflow-y:auto}
+.fdd-panel.open{display:block}
+.fdd-option{display:flex;align-items:center;gap:8px;padding:6px 14px;cursor:pointer;font-size:11px;font-family:var(--mono);color:var(--text2);transition:background .1s}
+.fdd-option:hover{background:var(--bg)}
+.fdd-option.dimmed{opacity:0.35;pointer-events:none}
+.fdd-option input[type=checkbox]{accent-color:var(--blue);width:13px;height:13px;cursor:pointer;flex-shrink:0}
+.fdd-option.checked{color:var(--blue);font-weight:500}
+.fdd-divider{height:1px;background:var(--border);margin:4px 0}
+.fdd-clear{padding:5px 14px;font-size:10px;font-family:var(--mono);color:var(--text3);cursor:pointer;text-decoration:underline;display:block}
+.fdd-clear:hover{color:var(--red)}
+
+/* baseline tooltip */
+.baseline-note{background:var(--amber-bg);border:1px solid #f6d860;border-radius:6px;padding:8px 14px;font-size:11px;font-family:var(--mono);color:var(--amber);display:flex;align-items:center;gap:8px}
+
+/* ── INPUT GRID ── */
+.grid-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+.grid-head-left h2{font-size:13px;font-weight:600}
+.grid-head-left p{font-size:11px;color:var(--text3);font-family:var(--mono);margin-top:2px}
+.reset-btn{font-family:var(--mono);font-size:11px;padding:5px 14px;border-radius:6px;border:1px solid var(--border2);background:var(--bg);color:var(--text2);cursor:pointer;transition:all .15s}
+.reset-btn:hover{border-color:var(--red);color:var(--red)}
+
+.metric-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px}
+.metric-tab{padding:9px 20px;border:none;background:none;cursor:pointer;font-size:12px;font-family:var(--sans);font-weight:600;color:var(--text3);border-bottom:2px solid transparent;transition:all .15s}
+.metric-tab:hover{color:var(--text2)}
+.metric-tab.active{color:var(--purple);border-bottom-color:var(--purple)}
+.metric-panel{display:none}.metric-panel.active{display:block}
+
+.grid-table{width:100%;border-collapse:collapse;font-size:12px}
+.grid-table th{background:var(--bg2);padding:8px 10px;text-align:center;font-size:10px;font-weight:600;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;border:1px solid var(--border)}
+.grid-table th.lh{text-align:left;padding-left:12px}
+.grid-table td{border:1px solid var(--border);padding:3px 5px;text-align:center;vertical-align:middle}
+.grid-table .lc{text-align:left;font-family:var(--mono);font-size:11px;color:var(--text2);padding:5px 12px;background:var(--bg);white-space:nowrap;font-weight:500}
+.sim-input{width:78px;border:none;background:transparent;font-family:var(--mono);font-size:12px;text-align:right;color:var(--text);padding:4px 6px;border-radius:4px;outline:none;transition:all .15s}
+.sim-input:hover{background:var(--bg)}
+.sim-input:focus{background:var(--blue-bg);color:var(--blue)}
+.sim-input.changed{color:var(--purple);font-weight:600}
+
+/* ── RESULTS ── */
+.view-toggle{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px}
+.view-btn{padding:10px 18px;border:none;background:none;cursor:pointer;font-size:12px;font-family:var(--sans);font-weight:600;color:var(--text3);border-bottom:2px solid transparent;transition:all .15s}
+.view-btn:hover{color:var(--text2)}
+.view-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
+.view-panel{display:none}.view-panel.active{display:block}
+
+.chip-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 0 14px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.bar-label{font-size:10px;color:var(--text3);font-family:var(--mono);white-space:nowrap}
+.mchip{padding:3px 11px;border-radius:20px;border:1px solid var(--border2);background:var(--bg);color:var(--text2);font-size:11px;font-family:var(--mono);cursor:pointer;transition:all .15s}
+.mchip:hover{border-color:var(--blue);color:var(--blue)}
+.mchip.active{background:var(--blue);color:white;border-color:var(--blue)}
+.qchip{padding:4px 14px;border-radius:20px;border:1px solid var(--border2);background:var(--white);color:var(--text2);font-size:11px;font-family:var(--mono);cursor:pointer;transition:all .15s}
+.qchip:hover{border-color:var(--blue);color:var(--blue)}
+.qchip.active{background:var(--blue);color:white;border-color:var(--blue)}
+
+.comp-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px}
+.comp-tab{padding:8px 18px;border:none;background:none;cursor:pointer;font-size:12px;font-family:var(--mono);color:var(--text3);border-bottom:2px solid transparent;transition:all .15s;font-weight:500}
+.comp-tab:hover{color:var(--text)}
+.comp-tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.comp-panel{display:none}.comp-panel.active{display:block}
+
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.kpi label{font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:0.8px}
+.kpi .val{font-size:22px;font-weight:700;margin-top:3px}
+.kpi .sub{font-size:11px;color:var(--text3);margin-top:2px;font-family:var(--mono)}
+
+.chart-wrap{position:relative}
+.chart-wrap.h240{height:240px}
+.chart-wrap.h260{height:260px}
+.charts-stack{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+
+.sim-badge{display:inline-block;background:var(--purple-bg);color:var(--purple);border:1px solid #c4b5fd;padding:2px 8px;border-radius:10px;font-size:10px;font-family:var(--mono);font-weight:600;margin-left:8px;vertical-align:middle}
+.qtr-note{font-size:10px;font-family:var(--mono);color:var(--text3);margin-bottom:12px}
+
+/* ── IMPACT TABLE ── */
+.impact-wrap{overflow-x:auto;max-height:460px}
+.impact-table{width:100%;border-collapse:collapse;font-size:12px}
+.impact-table thead{position:sticky;top:0;z-index:5}
+.impact-table th{background:var(--bg2);padding:8px 12px;text-align:left;font-size:10px;font-weight:600;font-family:var(--mono);color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);white-space:nowrap}
+.impact-table th.r{text-align:right}
+.impact-table td{padding:7px 12px;border-bottom:1px solid var(--border);vertical-align:middle;white-space:nowrap}
+.impact-table tr:hover td{background:#f9f8f5}
+.impact-table td.r{text-align:right;font-family:var(--mono)}
+.att-green{color:var(--green);font-weight:500}
+.att-amber{color:var(--amber);font-weight:500}
+.att-red{color:var(--red);font-weight:500}
+.delta-up{color:var(--green)}.delta-dn{color:var(--red)}.delta-na{color:var(--text3)}
+.changed-cell{color:var(--purple);font-weight:600}
+.impact-panel{display:none}.impact-panel.active{display:block}
+#sb-loading{position:fixed;inset:0;background:rgba(245,244,240,0.92);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:12px}
+#sb-loading p{font-family:'IBM Plex Mono',monospace;font-size:13px;color:#5a574f}
+#sb-loading .spin{width:28px;height:28px;border:3px solid #dedad2;border-top-color:#1d6fce;border-radius:50%;animation:spin 0.7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#sb-error{background:#fdecea;border:1px solid #c0392b;border-radius:8px;padding:12px 18px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#c0392b;margin:16px 28px;display:none}
+</style>
+</head>
+<body>
+<div id="sb-loading"><div class="spin"></div><p>Loading data from Supabase…</p></div>
+<div id="sb-error"></div>
+
+<header>
+  <div class="header-left">
+    <div class="header-icon">⚗</div>
+    <div>
+      <h1>AE Quota Simulator</h1>
+      <p>Modify MRR &amp; Add-ons quotas · analyse attainment impact by IC, Area, Region &amp; Level</p>
+    </div>
+  </div>
+  <a class="back-link" href="commission_dashboard_Jan_May_2026.html">← Dashboard</a>
+</header>
+
+<div class="main">
+
+  <!-- ══ FILTERS ══ -->
+  <div class="filters-bar">
+    <div class="baseline-note">
+      ℹ️ <strong>Baseline</strong> = current quotas from the compensation plan (CSV) applied to real performance actuals from Supabase.
+      Changing a quota only moves the denominator — actuals stay unchanged.
+    </div>
+    <div class="filters-row">
+      <div class="fdd" id="fdd-region">
+        <div class="fdd-btn" onclick="toggleFdd('region')" id="fdd-btn-region">
+          <span class="fdd-label">Region</span><span id="fdd-val-region">All</span><span class="fdd-caret">▾</span>
+        </div>
+        <div class="fdd-panel" id="fdd-panel-region"></div>
+      </div>
+      <div class="fdd" id="fdd-area">
+        <div class="fdd-btn" onclick="toggleFdd('area')" id="fdd-btn-area">
+          <span class="fdd-label">Area</span><span id="fdd-val-area">All</span><span class="fdd-caret">▾</span>
+        </div>
+        <div class="fdd-panel" id="fdd-panel-area"></div>
+      </div>
+      <div class="fdd" id="fdd-level">
+        <div class="fdd-btn" onclick="toggleFdd('level')" id="fdd-btn-level">
+          <span class="fdd-label">Level</span><span id="fdd-val-level">All</span><span class="fdd-caret">▾</span>
+        </div>
+        <div class="fdd-panel" id="fdd-panel-level"></div>
+      </div>
+      <button class="clear-btn" onclick="clearFilters()">Clear all</button>
+      <span class="filter-count" id="filter-count"></span>
+    </div>
+  </div>
+
+  <!-- ══ INPUT GRID ══ -->
+  <div class="card">
+    <div class="grid-header">
+      <div class="grid-head-left">
+        <h2>Quota Grid — edit to simulate</h2>
+        <p>All values in USD · one value per Level × Office applies to all months</p>
+      </div>
+      <button class="reset-btn" onclick="resetGrid()">↺ Reset to baseline</button>
+    </div>
+    <div class="metric-tabs" id="metric-tabs">
+      <button class="metric-tab active" data-metric="mrr"    onclick="switchMetric('mrr')">📊 MRR Quota (USD)</button>
+      <button class="metric-tab"        data-metric="addons" onclick="switchMetric('addons')">➕ Add-Ons Quota (USD)</button>
+    </div>
+    <div class="metric-panel active" id="mp-mrr"><div id="grid-mrr" style="overflow-x:auto"></div></div>
+    <div class="metric-panel"        id="mp-addons"><div id="grid-addons" style="overflow-x:auto"></div></div>
+  </div>
+
+  <!-- ══ SIMULATION RESULTS ══ -->
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      <span style="font-size:13px;font-weight:600">Simulation Results</span>
+      <span class="sim-badge">SIMULATED</span>
+    </div>
+    <div class="view-toggle">
+      <button class="view-btn active" id="vbtn-monthly"   onclick="switchView('monthly')">📅 Monthly</button>
+      <button class="view-btn"        id="vbtn-quarterly" onclick="switchView('quarterly')">📊 Quarterly</button>
+      <button class="view-btn"        id="vbtn-ytd"       onclick="switchView('ytd')">📈 YTD</button>
+    </div>
+
+    <div class="view-panel active" id="view-monthly">
+      <div class="chip-bar">
+        <span class="bar-label">Month :</span>
+        <div id="month-chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      </div>
+      <div id="monthly-content"></div>
+    </div>
+    <div class="view-panel" id="view-quarterly">
+      <div class="chip-bar">
+        <span class="bar-label">Quarter :</span>
+        <div id="quarter-chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      </div>
+      <div id="quarterly-content"></div>
+    </div>
+    <div class="view-panel" id="view-ytd">
+      <div id="ytd-content"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════
+// DATA
+// ════════════════════════════════════════════════════
+let AE_DATA = {};
+
+const LEVELS  = ['Velocity 1','Velocity 2','Velocity 3','Velocity 4','Strategic 1','Strategic 2','Strategic 3','Strategic 4'];
+const OFFICES = ['Berlin','London','Madrid','Mexico','New York','Paris','San Francisco','Sydney'];
+const OFFICE_CCY = {Berlin:'EUR',London:'GBP',Madrid:'EUR',Mexico:'MXN','New York':'USD',Paris:'EUR','San Francisco':'USD',Sydney:'AUD'};
+
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNyc2lrdWxvcWV4b2Nzd2VkamdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NTI0ODcsImV4cCI6MjA5NjIyODQ4N30.Wu__nes4dyM_vMUr7rOFs4NFzVA3C9G1nd0PhhcOQ7I';
+const SB_HDR={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+const SB_MONTHLY='https://srsikuloqexocswedjgf.supabase.co/rest/v1/monthly_data';
+const SB_GRID='https://srsikuloqexocswedjgf.supabase.co/rest/v1/quota_grid';
+
+const BASELINE = {
+  Berlin:          {'Velocity 1':{mrr:5550,addons:550},'Velocity 2':{mrr:5825,addons:550},'Velocity 3':{mrr:6400,addons:825},'Velocity 4':{mrr:6800,addons:825},'Strategic 1':{mrr:6500,addons:1250},'Strategic 2':{mrr:7700,addons:1250},'Strategic 3':{mrr:8200,addons:1500},'Strategic 4':{mrr:8800,addons:1500}},
+  London:          {'Velocity 1':{mrr:5550,addons:550},'Velocity 2':{mrr:5825,addons:550},'Velocity 3':{mrr:6600,addons:825},'Velocity 4':{mrr:7000,addons:825},'Strategic 1':{mrr:6500,addons:1250},'Strategic 2':{mrr:7700,addons:1250},'Strategic 3':{mrr:8200,addons:1500},'Strategic 4':{mrr:8800,addons:1500}},
+  Madrid:          {'Velocity 1':{mrr:5550,addons:550},'Velocity 2':{mrr:5825,addons:550},'Velocity 3':{mrr:6100,addons:825},'Velocity 4':{mrr:6500,addons:825},'Strategic 1':{mrr:6350,addons:1250},'Strategic 2':{mrr:6800,addons:1250},'Strategic 3':{mrr:7300,addons:1500},'Strategic 4':{mrr:8000,addons:1500}},
+  Mexico:          {'Velocity 1':{mrr:5550,addons:550},'Velocity 2':{mrr:5825,addons:550},'Velocity 3':{mrr:6100,addons:825},'Velocity 4':{mrr:6500,addons:825},'Strategic 1':{mrr:6350,addons:1250},'Strategic 2':{mrr:6800,addons:1250},'Strategic 3':{mrr:7300,addons:1500},'Strategic 4':{mrr:8000,addons:1500}},
+  'New York':      {'Velocity 1':{mrr:6300,addons:550},'Velocity 2':{mrr:6500,addons:550},'Velocity 3':{mrr:7300,addons:825},'Velocity 4':{mrr:7800,addons:825},'Strategic 1':{mrr:8400,addons:1250},'Strategic 2':{mrr:9000,addons:1250},'Strategic 3':{mrr:9800,addons:1500},'Strategic 4':{mrr:10500,addons:1500}},
+  Paris:           {'Velocity 1':{mrr:5550,addons:550},'Velocity 2':{mrr:5825,addons:550},'Velocity 3':{mrr:6400,addons:825},'Velocity 4':{mrr:6800,addons:825},'Strategic 1':{mrr:6500,addons:1250},'Strategic 2':{mrr:7700,addons:1250},'Strategic 3':{mrr:8200,addons:1500},'Strategic 4':{mrr:8800,addons:1500}},
+  'San Francisco': {'Velocity 1':{mrr:6300,addons:550},'Velocity 2':{mrr:6500,addons:550},'Velocity 3':{mrr:7300,addons:825},'Velocity 4':{mrr:7800,addons:825},'Strategic 1':{mrr:8400,addons:1250},'Strategic 2':{mrr:9000,addons:1250},'Strategic 3':{mrr:9800,addons:1500},'Strategic 4':{mrr:10500,addons:1500}},
+  Sydney:          {'Velocity 1':{mrr:5550,addons:550},'Velocity 2':{mrr:5825,addons:550},'Velocity 3':{mrr:6500,addons:825},'Velocity 4':{mrr:6900,addons:825},'Strategic 1':{mrr:6500,addons:1250},'Strategic 2':{mrr:7700,addons:1250},'Strategic 3':{mrr:8200,addons:1500},'Strategic 4':{mrr:8800,addons:1500}},
+};
+let simGrid = JSON.parse(JSON.stringify(BASELINE));
+
+// ════════════════════════════════════════════════════
+// PERSON HELPERS
+// ════════════════════════════════════════════════════
+function inferOffice(p){
+  const c=p.currency,a=(p.area||'').toLowerCase();
+  if(c==='AUD')return 'Sydney';if(c==='GBP')return 'London';if(c==='MXN')return 'Mexico';
+  if(c==='USD')return(a.includes('east')||a.includes('ny'))?'New York':'San Francisco';
+  if(c==='EUR'){
+    if(a.includes('dach')||a.includes('benelux')||a.includes('nordic'))return 'Berlin';
+    if(a.includes('fime'))return 'Paris';
+    if(a.includes('iberia'))return 'Madrid';
+    return 'Paris';
+  }
+  return null;
+}
+function inferRegion(p){
+  const c=p.currency;
+  if(c==='USD')return 'NA';if(c==='AUD')return 'APAC';return 'EMEA';
+}
+// Both sim and base use the SAME grid reference so delta=0 when nothing is changed.
+// baseQ reads from BASELINE (hardcoded CSV values), simQ reads from simGrid (user edits).
+// For people whose office can't be inferred, both use their actual quota from Supabase.
+function baselineQ(p,metric,nMo=1){
+  const o=inferOffice(p);
+  if(!o||!LEVELS.includes(p.level)) return p.comp[metric==='mrr'?'mrr_quota':'addons_quota'];
+  return (BASELINE[o]?.[p.level]?.[metric]??0)*nMo;
+}
+function simQ(p,metric,nMo=1){
+  const o=inferOffice(p);
+  if(!o||!LEVELS.includes(p.level)) return p.comp[metric==='mrr'?'mrr_quota':'addons_quota'];
+  return (simGrid[o]?.[p.level]?.[metric]??0)*nMo;
+}
+function actual(p,metric){return p.comp[metric==='mrr'?'mrr_actual':'addons_actual'];}
+function simAtt(p,metric,nMo=1){const q=simQ(p,metric,nMo);return q>0?(actual(p,metric)/q)*100:null;}
+function baseAtt(p,metric,nMo=1){const q=baselineQ(p,metric,nMo);return q>0?(actual(p,metric)/q)*100:null;}
+
+// ════════════════════════════════════════════════════
+// FILTERS STATE
+// ════════════════════════════════════════════════════
+let activeRegions=new Set(), activeAreas=new Set(), activeLevels=new Set();
+
+function applyFilters(people){
+  return people.filter(p=>{
+    if(activeRegions.size>0&&!activeRegions.has(inferRegion(p)))return false;
+    if(activeAreas.size>0&&!activeAreas.has(p.area||'Unknown'))return false;
+    if(activeLevels.size>0&&!activeLevels.has(p.level))return false;
+    return true;
+  });
+}
+
+// area → region map, rebuilt each render
+let _areaRegionMap = {};
+let _allRegions=[], _allAreas=[];
+
+function buildFilters(allPeople){
+  _areaRegionMap={};
+  allPeople.forEach(p=>{ _areaRegionMap[p.area||'Unknown']=inferRegion(p); });
+  _allRegions=[...new Set(allPeople.map(p=>inferRegion(p)))].sort();
+  _allAreas=[...new Set(allPeople.map(p=>p.area||'Unknown'))].sort();
+  renderDropdowns();
+  updateFilterCount(allPeople);
+}
+
+function renderDropdowns(){
+  // Cascade: selected regions restrict visible areas, selected areas restrict visible regions
+  const visibleAreas=activeRegions.size>0?_allAreas.filter(a=>activeRegions.has(_areaRegionMap[a])):_allAreas;
+  const visibleRegions=activeAreas.size>0?[...new Set([...activeAreas].map(a=>_areaRegionMap[a]))]:_allRegions;
+
+  function mkPanel(panelId,vals,activeSet,allVals,visibleVals,onToggle,onClear){
+    const el=document.getElementById(panelId); if(!el) return;
+    const dimSet=new Set(visibleVals);
+    el.innerHTML=allVals.map(v=>{
+      const checked=activeSet.has(v);
+      const dimmed=activeSet.size===0&&!dimSet.has(v)? ' dimmed':'';
+      return `<label class="fdd-option${checked?' checked':''}${dimmed}">
+        <input type="checkbox" ${checked?'checked':''} onchange="${onToggle}(this,'${v.replace(/'/g,"\\'")}')">
+        ${v}
+      </label>`;
+    }).join('')+`<div class="fdd-divider"></div><span class="fdd-clear" onclick="${onClear}()">Clear</span>`;
+  }
+  mkPanel('fdd-panel-region',_allRegions,activeRegions,_allRegions,visibleRegions,'chkRegion','clrRegion');
+  mkPanel('fdd-panel-area',_allAreas,activeAreas,_allAreas,visibleAreas,'chkArea','clrArea');
+  mkPanel('fdd-panel-level',LEVELS,activeLevels,LEVELS,LEVELS,'chkLevel','clrLevel');
+
+  // Update button labels
+  function setLabel(id,set){
+    const valEl=document.getElementById(`fdd-val-${id}`);
+    const btn=document.getElementById(`fdd-btn-${id}`);
+    if(!valEl||!btn) return;
+    if(set.size===0){valEl.textContent='All';btn.classList.remove('has-value');}
+    else{valEl.textContent=[...set].join(', ');btn.classList.add('has-value');}
+  }
+  setLabel('region',activeRegions); setLabel('area',activeAreas); setLabel('level',activeLevels);
+}
+
+// close all dropdowns except the one being opened
+function toggleFdd(id){
+  ['region','area','level'].forEach(k=>{
+    const p=document.getElementById(`fdd-panel-${k}`);
+    const b=document.getElementById(`fdd-btn-${k}`);
+    if(k===id){p.classList.toggle('open');b.classList.toggle('open');}
+    else{p.classList.remove('open');b.classList.remove('open');}
+  });
+}
+// close on outside click
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.fdd')){
+    document.querySelectorAll('.fdd-panel.open,.fdd-btn.open').forEach(el=>el.classList.remove('open'));
+  }
+});
+
+function chkRegion(el,v){
+  if(el.checked)activeRegions.add(v);else activeRegions.delete(v);
+  if(activeRegions.size>0)[...activeAreas].forEach(a=>{if(!activeRegions.has(_areaRegionMap[a]))activeAreas.delete(a);});
+  renderDropdowns(); updateFilterCount(); renderActive();
+}
+function chkArea(el,v){
+  if(el.checked)activeAreas.add(v);else activeAreas.delete(v);
+  activeRegions.clear();
+  if(activeAreas.size>0)activeAreas.forEach(a=>activeRegions.add(_areaRegionMap[a]));
+  renderDropdowns(); updateFilterCount(); renderActive();
+}
+function chkLevel(el,v){
+  if(el.checked)activeLevels.add(v);else activeLevels.delete(v);
+  renderDropdowns(); updateFilterCount(); renderActive();
+}
+function clrRegion(){activeRegions.clear();renderDropdowns();updateFilterCount();renderActive();}
+function clrArea(){activeAreas.clear();activeRegions.clear();renderDropdowns();updateFilterCount();renderActive();}
+function clrLevel(){activeLevels.clear();renderDropdowns();updateFilterCount();renderActive();}
+function clearFilters(){activeRegions.clear();activeAreas.clear();activeLevels.clear();renderDropdowns();updateFilterCount();renderActive();}
+
+let _lastAllPeople=[];
+function updateFilterCount(allPeople){
+  if(allPeople)_lastAllPeople=allPeople;
+  const people=_lastAllPeople;
+  const n=applyFilters(people).length;
+  const total=people.length;
+  const el=document.getElementById('filter-count');
+  if(el) el.textContent=n===total?`${total} AEs (no filter)`:`${n} / ${total} AEs shown`;
+}
+
+// ════════════════════════════════════════════════════
+// CHART HELPERS
+// ════════════════════════════════════════════════════
+const GC='rgba(0,0,0,0.05)',TC={color:'#9c9890',font:{size:10}};
+const TT={backgroundColor:'rgba(26,25,22,0.88)',titleFont:{size:11},bodyFont:{family:'IBM Plex Mono',size:11},padding:10,cornerRadius:6};
+const COLS=['#1d6fce','#1a7a4a','#b45309','#7c3aed','#0891b2','#c0392b','#059669','#9c9890'];
+const col=i=>COLS[i%COLS.length];
+const charts={};
+function dc(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+function attCol(v){return v>=100?'rgba(26,122,74,0.72)':v>=70?'rgba(29,111,206,0.65)':'rgba(192,57,43,0.65)';}
+
+function groupAvg(arr,kFn,vFn){
+  const m={};
+  arr.forEach(p=>{const k=kFn(p);if(!m[k])m[k]=[];const v=vFn(p);if(v!==null&&isFinite(v))m[k].push(v);});
+  return Object.entries(m).map(([k,vs])=>({key:k,avg:vs.length?vs.reduce((s,v)=>s+v,0)/vs.length:0,n:vs.length}))
+    .filter(g=>g.n>0).sort((a,b)=>b.avg-a.avg);
+}
+
+function mkBar(id,labels,data,colors,horiz=false,noLine=false,step=null){
+  dc(id);
+  const ctx=document.getElementById(id)?.getContext('2d');
+  if(!ctx||!labels.length)return;
+  charts[id]=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[
+      {data,backgroundColor:colors,borderRadius:3,borderSkipped:false},
+      ...(!noLine?[{type:'line',data:labels.map(()=>100),borderColor:'rgba(0,0,0,0.18)',borderDash:[5,4],borderWidth:1.5,pointRadius:0,fill:false}]:[])
+    ]},
+    options:{indexAxis:horiz?'y':'x',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{...TT,callbacks:{label:ctx=>` ${ctx.raw.toFixed(1)}%`}}},
+      scales:{
+        x:{grid:horiz?{color:GC}:{display:false},ticks:{...TC,callback:horiz?v=>v+'%':function(v){return this.getLabelForValue(v);}}},
+        y:{grid:horiz?{display:false}:{color:GC},ticks:{...TC,callback:horiz?function(v){return this.getLabelForValue(v);}:v=>v+'%'}}
+      }
+    }
+  });
+}
+
+// ════════════════════════════════════════════════════
+// COMPONENT BLOCK HTML + RENDER
+// ════════════════════════════════════════════════════
+function compBlockHTML(metric,sfx,label){
+  const c=metric==='mrr'?'var(--blue)':'var(--amber)';
+  return `
+  <div class="kpi-row">
+    <div class="kpi"><label>AEs with data</label><div class="val" id="ki-${sfx}">—</div></div>
+    <div class="kpi"><label>≥ 100% attainment</label>
+      <div class="val" style="color:var(--green)" id="ka-${sfx}">—</div>
+      <div class="sub" id="kad-${sfx}"></div></div>
+    <div class="kpi"><label>Avg ${label} Attainment</label>
+      <div class="val" style="color:${c}" id="kv-${sfx}">—</div>
+      <div class="sub" id="kvd-${sfx}"></div></div>
+  </div>
+  <div class="charts-stack">
+    <div class="card" style="padding:14px 16px">
+      <div class="card-title">by IC <span style="color:var(--purple);font-weight:400;text-transform:none;letter-spacing:0">(simulated)</span></div>
+      <div class="chart-wrap" id="cw-ic-${sfx}" style="height:240px"><canvas id="c-ic-${sfx}"></canvas></div>
+    </div>
+    <div class="card" style="padding:14px 16px">
+      <div class="card-title">by Area</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="c-area-${sfx}"></canvas></div>
+    </div>
+    <div class="card" style="padding:14px 16px">
+      <div class="card-title">by Region</div>
+      <div class="chart-wrap" style="height:160px"><canvas id="c-region-${sfx}"></canvas></div>
+    </div>
+    <div class="card" style="padding:14px 16px">
+      <div class="card-title">by Level</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="c-level-${sfx}"></canvas></div>
+    </div>
+  </div>
+  <div class="card" style="padding:0;margin-top:2px">
+    <div style="padding:14px 16px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1.2px;color:var(--text3)">Impact</span>
+      <span style="font-size:10px;font-family:var(--mono);color:var(--text3)">— baseline vs simulated · quotas in purple when changed</span>
+    </div>
+    <div class="comp-tabs" id="it-${sfx}" style="margin:10px 16px 0;border-bottom:1px solid var(--border)">
+      <button class="comp-tab active" data-t="ic"     onclick="swImpact('${sfx}','ic')">By IC</button>
+      <button class="comp-tab"        data-t="level"  onclick="swImpact('${sfx}','level')">By Level</button>
+      <button class="comp-tab"        data-t="region" onclick="swImpact('${sfx}','region')">By Region</button>
+      <button class="comp-tab"        data-t="area"   onclick="swImpact('${sfx}','area')">By Area</button>
+    </div>
+    <div class="impact-panel active" id="ip-${sfx}-ic">
+      <div class="impact-wrap">
+        <table class="impact-table">
+          <thead><tr>
+            <th>Name</th><th>Level</th><th>Area</th><th>Region</th>
+            <th class="r">Actual</th>
+            <th class="r">Quota baseline</th><th class="r">Quota simulated</th>
+            <th class="r">Att% baseline</th><th class="r">Att% simulated</th><th class="r">Δ</th>
+          </tr></thead>
+          <tbody id="tb-${sfx}"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="impact-panel" id="ip-${sfx}-level">
+      <div class="impact-wrap">
+        <table class="impact-table">
+          <thead><tr>
+            <th>Level</th><th class="r">#AEs</th>
+            <th class="r">Avg Actual</th>
+            <th class="r">Quota baseline</th><th class="r">Quota simulated</th>
+            <th class="r">Avg Att% baseline</th><th class="r">Avg Att% simulated</th><th class="r">Avg Δ</th>
+          </tr></thead>
+          <tbody id="tb-${sfx}-level"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="impact-panel" id="ip-${sfx}-region">
+      <div class="impact-wrap">
+        <table class="impact-table">
+          <thead><tr>
+            <th>Region</th><th class="r">#AEs</th>
+            <th class="r">Avg Actual</th>
+            <th class="r">Quota baseline</th><th class="r">Quota simulated</th>
+            <th class="r">Avg Att% baseline</th><th class="r">Avg Att% simulated</th><th class="r">Avg Δ</th>
+          </tr></thead>
+          <tbody id="tb-${sfx}-region"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="impact-panel" id="ip-${sfx}-area">
+      <div class="impact-wrap">
+        <table class="impact-table">
+          <thead><tr>
+            <th>Area</th><th class="r">#AEs</th>
+            <th class="r">Avg Actual</th>
+            <th class="r">Quota baseline</th><th class="r">Quota simulated</th>
+            <th class="r">Avg Att% baseline</th><th class="r">Avg Att% simulated</th><th class="r">Avg Δ</th>
+          </tr></thead>
+          <tbody id="tb-${sfx}-area"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderCompBlock(people,metric,sfx,nMo=1){
+  const valid=applyFilters(people.filter(p=>LEVELS.includes(p.level)));
+  // KPIs
+  const sA=valid.map(p=>simAtt(p,metric,nMo)).filter(v=>v!==null&&isFinite(v));
+  const bA=valid.map(p=>baseAtt(p,metric,nMo)).filter(v=>v!==null&&isFinite(v));
+  const avgS=sA.length?sA.reduce((s,v)=>s+v,0)/sA.length:0;
+  const avgB=bA.length?bA.reduce((s,v)=>s+v,0)/bA.length:0;
+  const above=sA.filter(v=>v>=100).length, aboveB=bA.filter(v=>v>=100).length;
+  const d=avgS-avgB;
+  const dS=x=>{
+    if(Math.abs(x)<0.05)return '<span class="delta-na">no change</span>';
+    return `<span class="${x>0?'delta-up':'delta-dn'}">${x>0?'+':''}${x.toFixed(1)}pp vs baseline</span>`;
+  };
+  document.getElementById(`ki-${sfx}`).textContent=valid.length;
+  document.getElementById(`ka-${sfx}`).textContent=above;
+  document.getElementById(`kad-${sfx}`).innerHTML=dS(above-aboveB);
+  document.getElementById(`kv-${sfx}`).textContent=avgS.toFixed(1)+'%';
+  document.getElementById(`kvd-${sfx}`).innerHTML=dS(d);
+
+  // by IC
+  const sorted=[...valid].map(p=>({...p,_a:simAtt(p,metric,nMo)}))
+    .filter(p=>p._a!==null&&isFinite(p._a)).sort((a,b)=>b._a-a._a);
+  const cw=document.getElementById(`cw-ic-${sfx}`);
+  if(cw) cw.style.height=Math.max(240,sorted.length*24)+'px';
+  mkBar(`c-ic-${sfx}`,
+    sorted.map(p=>{const pts=p.name.split(' ');return pts[0]+(pts[1]?' '+pts[1][0]+'.':'');}),
+    sorted.map(p=>Math.round(p._a*10)/10),sorted.map(p=>attCol(p._a)),true,true);
+
+  // by Area
+  const aGrp=groupAvg(valid,p=>p.area||'Unknown',p=>simAtt(p,metric,nMo));
+  mkBar(`c-area-${sfx}`,aGrp.map(g=>g.key),aGrp.map(g=>Math.round(g.avg*10)/10),aGrp.map((_,i)=>col(i)+'bb'));
+
+  // by Region
+  const rGrp=groupAvg(valid,p=>inferRegion(p),p=>simAtt(p,metric,nMo));
+  mkBar(`c-region-${sfx}`,rGrp.map(g=>g.key),rGrp.map(g=>Math.round(g.avg*10)/10),rGrp.map((_,i)=>col(i+2)+'bb'));
+
+  // by Level
+  const lGrp=groupAvg(valid,p=>p.level,p=>simAtt(p,metric,nMo));
+  // sort by LEVELS order
+  lGrp.sort((a,b)=>LEVELS.indexOf(a.key)-LEVELS.indexOf(b.key));
+  mkBar(`c-level-${sfx}`,lGrp.map(g=>g.key),lGrp.map(g=>Math.round(g.avg*10)/10),lGrp.map((_,i)=>col(i+4)+'bb'));
+
+  // impact table
+  const fQ=v=>v!=null&&isFinite(v)&&v>0?'$'+Math.round(v).toLocaleString():'—';
+  const fP=v=>v!=null&&isFinite(v)?v.toFixed(1)+'%':'—';
+  const aC=v=>!v||!isFinite(v)?'':v>=100?'att-green':v>=70?'att-amber':'att-red';
+  const rows=[...valid].map(p=>{
+    const bQv=baselineQ(p,metric,nMo);
+    const sQv=simQ(p,metric,nMo);
+    const bAv=baseAtt(p,metric,nMo);
+    const sAv=simAtt(p,metric,nMo);
+    const delta=bAv!=null&&sAv!=null?sAv-bAv:null;
+    const qChg=Math.abs((sQv||0)-(bQv||0))>0.5;
+    return{p,bQv,sQv,bAv,sAv,delta,qChg,act:actual(p,metric)};
+  }).sort((a,b)=>(b.sAv||0)-(a.sAv||0));
+
+  const tbody=document.getElementById(`tb-${sfx}`);
+  if(!tbody)return;
+  tbody.innerHTML=rows.map(({p,bQv,sQv,bAv,sAv,delta,qChg,act})=>`<tr>
+    <td style="font-weight:500">${p.name}</td>
+    <td style="font-family:var(--mono);font-size:11px;color:var(--text2)">${p.level}</td>
+    <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${p.area||'—'}</td>
+    <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${inferRegion(p)}</td>
+    <td class="r">$${Math.round(act).toLocaleString()}</td>
+    <td class="r">${fQ(bQv)}</td>
+    <td class="r ${qChg?'changed-cell':''}">${fQ(sQv)}</td>
+    <td class="r ${aC(bAv)}">${fP(bAv)}</td>
+    <td class="r ${aC(sAv)}">${fP(sAv)}</td>
+    <td class="r">${delta==null?'—':`<span class="${Math.abs(delta)<0.05?'delta-na':delta>0?'delta-up':'delta-dn'}">${delta>0?'+':''}${delta.toFixed(1)}pp</span>`}</td>
+  </tr>`).join('');
+
+  // ── Aggregated impact tables ──
+  function renderGroupTable(tbId, keyFn, sortFn) {
+    const tb = document.getElementById(tbId); if(!tb) return;
+    const grps = {};
+    rows.forEach(({p,bQv,sQv,bAv,sAv,act})=>{
+      const k = keyFn(p);
+      if(!grps[k]) grps[k]={key:k,n:0,act:0,bQ:0,sQ:0,bA:[],sA:[],deltas:[]};
+      const g=grps[k]; g.n++;
+      g.act+=act; g.bQ+=bQv||0; g.sQ+=sQv||0;
+      if(bAv!=null&&isFinite(bAv))g.bA.push(bAv);
+      if(sAv!=null&&isFinite(sAv))g.sA.push(sAv);
+      if(bAv!=null&&sAv!=null&&isFinite(bAv)&&isFinite(sAv))g.deltas.push(sAv-bAv);
+    });
+    const avg=arr=>arr.length?arr.reduce((s,v)=>s+v,0)/arr.length:null;
+    const list=Object.values(grps).sort(sortFn||((a,b)=>{const av=avg(b.sA),bv=avg(a.sA);return (av||0)-(bv||0);}));
+    const qChg=g=>Math.abs(g.sQ-g.bQ)>0.5;
+    tb.innerHTML=list.map(g=>{
+      const bAv=avg(g.bA), sAv=avg(g.sA), dAv=avg(g.deltas);
+      return `<tr>
+        <td style="font-weight:500">${g.key}</td>
+        <td class="r" style="font-family:var(--mono)">${g.n}</td>
+        <td class="r">$${Math.round(g.act/g.n).toLocaleString()}</td>
+        <td class="r">${fQ(g.bQ/g.n)}</td>
+        <td class="r ${qChg(g)?'changed-cell':''}">${fQ(g.sQ/g.n)}</td>
+        <td class="r ${aC(bAv)}">${fP(bAv)}</td>
+        <td class="r ${aC(sAv)}">${fP(sAv)}</td>
+        <td class="r">${dAv==null?'—':`<span class="${Math.abs(dAv)<0.05?'delta-na':dAv>0?'delta-up':'delta-dn'}">${dAv>0?'+':''}${dAv.toFixed(1)}pp</span>`}</td>
+      </tr>`;
+    }).join('');
+  }
+  renderGroupTable(`tb-${sfx}-level`, p=>p.level, (a,b)=>LEVELS.indexOf(a.key)-LEVELS.indexOf(b.key));
+  renderGroupTable(`tb-${sfx}-region`, p=>inferRegion(p));
+  renderGroupTable(`tb-${sfx}-area`, p=>p.area||'Unknown');
+}
+
+// ════════════════════════════════════════════════════
+// DATA AGGREGATION
+// ════════════════════════════════════════════════════
+let MONTHS=[];
+const MQ=m=>{const i=MONTHS.indexOf(m);return i<3?'Q1':i<6?'Q2':i<9?'Q3':'Q4';};
+let AVAIL_Q=[];
+
+function rawPeople(month){
+  return(AE_DATA[month]||[]).filter(p=>p.level&&p.level!=='#N/A!'&&LEVELS.includes(p.level));
+}
+function aggPeople(months){
+  const by={};
+  months.forEach(mo=>rawPeople(mo).forEach(p=>{
+    if(!by[p.name])by[p.name]={count:0,ma:0,mq:0,aa:0,aq:0,base:p};
+    const r=by[p.name];r.count++;
+    r.ma+=p.comp.mrr_actual;r.mq+=p.comp.mrr_quota;
+    r.aa+=p.comp.addons_actual;r.aq+=p.comp.addons_quota;
+  }));
+  return Object.values(by).map(r=>({...r.base,comp:{...r.base.comp,
+    mrr_actual:r.ma,mrr_quota:r.mq,addons_actual:r.aa,addons_quota:r.aq}}));
+}
+
+// ════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════
+let activeView='monthly', activeMonth='', activeQ='';
+
+function allPeopleForView(){
+  if(activeView==='monthly')return rawPeople(activeMonth);
+  if(activeView==='quarterly')return aggPeople(MONTHS.filter(m=>MQ(m)===activeQ));
+  return aggPeople(MONTHS);
+}
+
+function renderView(view){
+  const vMkComp=(sfxPfx,people,nMo)=>`
+    <div class="comp-tabs" id="ct-${sfxPfx}">
+      <button class="comp-tab active" data-c="mrr"    onclick="swComp('${sfxPfx}','mrr')">📊 MRR Component</button>
+      <button class="comp-tab"        data-c="addons" onclick="swComp('${sfxPfx}','addons')">➕ Add-ons Component</button>
+    </div>
+    <div class="comp-panel active" id="cp-${sfxPfx}-mrr">${compBlockHTML('mrr','${sfxPfx}-mrr','MRR')}</div>
+    <div class="comp-panel"        id="cp-${sfxPfx}-addons">${compBlockHTML('addons','${sfxPfx}-addons','Add-ons')}</div>`;
+
+  if(view==='monthly'){
+    const people=rawPeople(activeMonth);
+    document.getElementById('monthly-content').innerHTML=vMkComp('mo',people,1)
+      .replace(/\$\{sfxPfx\}/g,'mo');
+    renderCompBlock(people,'mrr','mo-mrr',1);
+    renderCompBlock(people,'addons','mo-addons',1);
+    buildFilters(people);
+  } else if(view==='quarterly'){
+    const qMo=MONTHS.filter(m=>MQ(m)===activeQ);
+    const people=aggPeople(qMo);
+    document.getElementById('quarterly-content').innerHTML=
+      `<p class="qtr-note">Cumulative over ${qMo.join(', ')} (${qMo.length} month${qMo.length>1?'s':''})</p>`+
+      vMkComp('qr',people,qMo.length).replace(/\$\{sfxPfx\}/g,'qr');
+    renderCompBlock(people,'mrr','qr-mrr',qMo.length);
+    renderCompBlock(people,'addons','qr-addons',qMo.length);
+    buildFilters(people);
+  } else {
+    const people=aggPeople(MONTHS);
+    document.getElementById('ytd-content').innerHTML=
+      `<p class="qtr-note">YTD — cumulative over ${MONTHS.join(', ')} (${MONTHS.length} months)</p>`+
+      vMkComp('yt',people,MONTHS.length).replace(/\$\{sfxPfx\}/g,'yt');
+    renderCompBlock(people,'mrr','yt-mrr',MONTHS.length);
+    renderCompBlock(people,'addons','yt-addons',MONTHS.length);
+    buildFilters(people);
+  }
+}
+
+function renderActive(){renderView(activeView);}
+
+// ════════════════════════════════════════════════════
+// UI CONTROLS
+// ════════════════════════════════════════════════════
+function switchView(v){
+  activeView=v;
+  document.querySelectorAll('.view-btn').forEach(b=>b.classList.toggle('active',b.id==='vbtn-'+v));
+  document.querySelectorAll('.view-panel').forEach(p=>p.classList.toggle('active',p.id==='view-'+v));
+  renderView(v);
+}
+function swImpact(sfx,tab){
+  document.querySelectorAll(`#it-${sfx} .comp-tab`).forEach(t=>t.classList.toggle('active',t.dataset.t===tab));
+  document.querySelectorAll(`#ip-${sfx}-ic,#ip-${sfx}-level,#ip-${sfx}-region,#ip-${sfx}-area`).forEach(p=>p.classList.remove('active'));
+  document.getElementById(`ip-${sfx}-${tab}`)?.classList.add('active');
+}
+function swComp(pfx,comp){
+  document.querySelectorAll(`#ct-${pfx} .comp-tab`).forEach(t=>t.classList.toggle('active',t.dataset.c===comp));
+  document.querySelectorAll(`#view-${activeView} .comp-panel`).forEach(p=>p.classList.remove('active'));
+  document.getElementById(`cp-${pfx}-${comp}`)?.classList.add('active');
+}
+function switchMetric(m){
+  document.querySelectorAll('.metric-tab').forEach(t=>t.classList.toggle('active',t.dataset.metric===m));
+  document.querySelectorAll('.metric-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById(`mp-${m}`).classList.add('active');
+}
+function buildMonthChips(){
+  document.getElementById('month-chips').innerHTML=MONTHS.map(m=>
+    `<button class="mchip${m===activeMonth?' active':''}" onclick="selMonth('${m}',this)">${m.replace(' 2026','')}</button>`).join('');
+}
+function selMonth(m,el){
+  activeMonth=m;
+  document.querySelectorAll('#month-chips .mchip').forEach(c=>c.classList.toggle('active',c.textContent===m.replace(' 2026','')));
+  renderView('monthly');
+}
+function buildQChips(){
+  document.getElementById('quarter-chips').innerHTML=AVAIL_Q.map(q=>
+    `<button class="qchip${q===activeQ?' active':''}" onclick="selQ('${q}',this)">${q} 2026</button>`).join('');
+}
+function selQ(q,el){
+  activeQ=q;
+  document.querySelectorAll('#quarter-chips .qchip').forEach(c=>c.classList.toggle('active',c.textContent===q+' 2026'));
+  renderView('quarterly');
+}
+
+// ── Input grid ──
+function buildGrid(metric){
+  let h=`<table class="grid-table"><thead><tr><th class="lh">Level</th>`;
+  OFFICES.forEach(o=>h+=`<th>${o}</th>`);
+  h+=`</tr></thead><tbody>`;
+  LEVELS.forEach(lv=>{
+    h+=`<tr><td class="lc">${lv}</td>`;
+    OFFICES.forEach(of=>{
+      const base=BASELINE[of]?.[lv]?.[metric]??0;
+      const sim=simGrid[of]?.[lv]?.[metric]??base;
+      const changed=Math.abs(sim-base)>0.01;
+      h+=`<td><input type="number" class="sim-input${changed?' changed':''}"
+        data-office="${of}" data-level="${lv}" data-metric="${metric}"
+        value="${sim}" min="0" step="50"
+        onchange="onInp(this)" oninput="onInp(this)"></td>`;
+    });
+    h+=`</tr>`;
+  });
+  return h+`</tbody></table>`;
+}
+const _saveTimers={};
+function onInp(el){
+  const{office,level,metric}=el.dataset,val=parseFloat(el.value)||0;
+  if(!simGrid[office])simGrid[office]={};
+  if(!simGrid[office][level])simGrid[office][level]={...BASELINE[office]?.[level]};
+  simGrid[office][level][metric]=val;
+  el.classList.toggle('changed',Math.abs(val-(BASELINE[office]?.[level]?.[metric]??0))>0.01);
+  renderActive();
+  // Debounced save to Supabase
+  const k=`${office}|${level}|${metric}`;
+  clearTimeout(_saveTimers[k]);
+  _saveTimers[k]=setTimeout(()=>sbSaveGrid(office,level,metric,val),700);
+}
+async function sbSaveGrid(office,level,metric,value){
+  try{
+    await fetch(SB_GRID,{method:'POST',
+      headers:{...SB_HDR,'Prefer':'resolution=merge-duplicates'},
+      body:JSON.stringify({office,level,metric,value,updated_at:new Date().toISOString()})});
+  }catch(e){console.warn('grid save failed',e);}
+}
+async function resetGrid(){
+  simGrid=JSON.parse(JSON.stringify(BASELINE));
+  // Delete all custom grid values from DB (falls back to BASELINE on next load)
+  try{ await fetch(SB_GRID+'?value=gte.0',{method:'DELETE',headers:{...SB_HDR,'Prefer':'return=minimal'}}); }
+  catch(e){console.warn('grid reset failed',e);}
+  document.getElementById('grid-mrr').innerHTML=buildGrid('mrr');
+  document.getElementById('grid-addons').innerHTML=buildGrid('addons');
+  renderActive();
+}
+
+// ── INIT ──
+(async()=>{
+  try{
+    // Parallel fetch: monthly data + quota grid
+    const [mRes,gRes]=await Promise.all([
+      fetch(SB_MONTHLY+'?select=month,data&order=month',{headers:SB_HDR}),
+      fetch(SB_GRID+'?select=office,level,metric,value',{headers:SB_HDR})
+    ]);
+    if(!mRes.ok||!gRes.ok) throw new Error(`HTTP ${mRes.status}/${gRes.status}`);
+    const mRows=await mRes.json();
+    const gRows=await gRes.json();
+
+    // Build AE_DATA: month → [person, ...]
+    mRows.forEach(r=>{
+      try{
+        const d=typeof r.data==='string'?JSON.parse(r.data):r.data;
+        const ae=d?.plans?.['AE Plan'];
+        if(ae)AE_DATA[r.month]=ae;
+      }catch(e){console.warn('parse error',r.month,e);}
+    });
+
+    // Build simGrid: start from BASELINE, override with DB values
+    simGrid=JSON.parse(JSON.stringify(BASELINE));
+    gRows.forEach(({office,level,metric,value})=>{
+      if(!simGrid[office])simGrid[office]={};
+      if(!simGrid[office][level])simGrid[office][level]={};
+      simGrid[office][level][metric]=Number(value);
+    });
+
+    // Sort months chronologically
+    MONTHS=Object.keys(AE_DATA).sort((a,b)=>new Date(a)-new Date(b));
+    AVAIL_Q=[...new Set(MONTHS.map(MQ))];
+    activeMonth=MONTHS[MONTHS.length-1]||'';
+    activeQ=AVAIL_Q[0]||'';
+
+    // Boot UI
+    document.getElementById('sb-loading').style.display='none';
+    document.getElementById('grid-mrr').innerHTML=buildGrid('mrr');
+    document.getElementById('grid-addons').innerHTML=buildGrid('addons');
+    buildMonthChips();buildQChips();
+    renderView('monthly');
+
+  }catch(e){
+    document.getElementById('sb-loading').style.display='none';
+    const err=document.getElementById('sb-error');
+    err.style.display='block';
+    err.textContent='⚠ Failed to load Supabase data: '+e.message;
+    console.error(e);
+  }
+})();
+</script>
+</body>
+</html>
