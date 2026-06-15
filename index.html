@@ -308,19 +308,37 @@ let _store = null;
 
 async function initStore() {
   if (_store) return _store;
-  // Start with embedded data as base
-  _store = { ...(EMBEDDED_DATA || {}) };
+  _store = {};
   try {
     const res = await fetch(`${SB_MONTHLY}?select=month,data`, { headers: SB_HDR });
     const rows = await res.json();
-    if (Array.isArray(rows)) {
-      rows.forEach(r => {
-        // Supabase data takes precedence over embedded
+    const sbMonths = Array.isArray(rows) ? rows.filter(r => r.month) : [];
+
+    if (sbMonths.length > 0) {
+      // Supabase has data → use it as primary source
+      sbMonths.forEach(r => {
         try { _store[r.month] = typeof r.data === 'string' ? JSON.parse(r.data) : r.data; }
         catch(e) { console.warn('parse error for', r.month, e); }
       });
+      // Backfill any embedded months not yet in Supabase
+      const sbKeys = new Set(sbMonths.map(r => r.month));
+      for (const [month, data] of Object.entries(EMBEDDED_DATA || {})) {
+        if (!sbKeys.has(month)) {
+          _store[month] = data;
+          saveMonthToSupabase(month, data); // upload missing month in background
+        }
+      }
+    } else {
+      // Supabase is empty → upload all embedded months (first run)
+      _store = { ...(EMBEDDED_DATA || {}) };
+      for (const [month, data] of Object.entries(EMBEDDED_DATA || {})) {
+        await saveMonthToSupabase(month, data);
+      }
     }
-  } catch(e) { console.warn('Supabase monthly load failed:', e); }
+  } catch(e) {
+    console.warn('Supabase monthly load failed, using embedded data:', e);
+    _store = { ...(EMBEDDED_DATA || {}) };
+  }
   return _store;
 }
 
